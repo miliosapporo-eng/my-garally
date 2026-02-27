@@ -460,15 +460,7 @@
                 fullUrl: "images/entry/yamagiwa.jpg",
                 title: "million dollar baby",
                 category: "snap"
-            },
- 　　　　　　　{             
-                id: 12,
-                url: "images/entry/m.jpg",
-                fullUrl: "images/entry/m.jpg",
-                title: "distance",
-                category: "snap"
             }
-             
         ];
 
         // DOM要素の取得
@@ -481,8 +473,8 @@
         const lightboxTitle = document.getElementById('lightbox-title');
         const lightboxCategory = document.getElementById('lightbox-category');
         const closeBtn = document.getElementById('lightbox-close');
-        const prevBtn = document.getElementById('lightbox-next'); // Fixed logic for buttons
-        const nextBtn = document.getElementById('lightbox-prev'); // Fixed logic for buttons
+        const prevBtn = document.getElementById('lightbox-prev');
+        const nextBtn = document.getElementById('lightbox-next');
 
         let currentFilter = 'all';
         let currentIndex = 0;
