@@ -55,7 +55,7 @@ try {
     if (typeof window !== 'undefined' && window.__firebase_config) {
         let firebaseConfig = null;
         
-        // 【頑強なパース処理】文字列でもオブジェクトの直接参照でも、100%エラーを起こさず抽出します
+        // window.__firebase_configが文字列かオブジェクトか自動判定してパース
         if (typeof window.__firebase_config === 'string') {
             firebaseConfig = JSON.parse(window.__firebase_config);
         } else if (typeof window.__firebase_config === 'object') {
@@ -253,7 +253,7 @@ export default function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [lightboxIndex, displayedPhotos.length]);
 
-    // 【スクロールバグ修正】ライトボックス表示時のみスクロールロックする
+    // ライトボックス表示時のみスクロールロックする
     useEffect(() => {
         if (lightboxIndex !== null) {
             document.body.style.overflow = 'hidden';
@@ -281,7 +281,7 @@ export default function App() {
                 setAuthUser({ email: 'admin@dsl.com', isAnonymous: false });
                 setCurrentView('admin_dashboard');
             } else {
-                setLoginError('シミュレーション用ログイン情報: admin@dsl.com / passwordを入力してください。');
+                setLoginError('シミュレーション用ログイン情報: admin@dsl.com / password を入力してください。');
             }
             return;
         }
@@ -853,9 +853,15 @@ export default function App() {
                     <header className="bg-gray-950 border-b border-gray-900 px-6 py-4 flex justify-between items-center">
                         <div className="flex items-center gap-4">
                             <img src="images/logo.png" alt="Logo" className="h-8 object-contain" />
-                            <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2.5 py-0.5 rounded-full font-medium tracking-wide">
-                                {isSimulationMode ? "Simulation Mode" : "Cloud Production Connected"}
-                            </span>
+                            {isSimulationMode ? (
+                                <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2.5 py-0.5 rounded-full font-medium tracking-wide">
+                                    Simulation Mode
+                                </span>
+                            ) : (
+                                <span className="text-xs bg-green-500/10 text-green-500 border border-green-500/20 px-2.5 py-0.5 rounded-full font-medium tracking-wide">
+                                    Cloud Production Connected
+                                </span>
+                            )}
                         </div>
                         <button 
                             onClick={handleAdminLogout} 
