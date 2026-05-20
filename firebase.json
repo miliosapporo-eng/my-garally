@@ -10,7 +10,7 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/src/App.jsx"
+        "destination": "/index.html"
       }
     ]
   }
