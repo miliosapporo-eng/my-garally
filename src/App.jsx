@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// --- 写真データ ---
+// --- 写真データ (HAKUはnatureのまま、ANIMALカテゴリーフィルターは完備) ---
 const photos = [
     { id: 1, url: "images/entry/carp.png", fullUrl: "images/entry/carp.png", title: "80", category: "landscape" },
     { id: 2, url: "images/entry/mtfuji.jpg", fullUrl: "images/entry/mtfuji.jpg", title: "The Camp", category: "landscape" },
@@ -29,7 +29,7 @@ const FadeInSection = ({ children, delay = 0, className = "" }) => {
                     observer.unobserve(entry.target);
                 }
             });
-        }, { threshold: 0.1 }); // 10%見えたら発火
+        }, { threshold: 0.1 });
 
         const currentRef = domRef.current;
         if (currentRef) observer.observe(currentRef);
@@ -53,6 +53,7 @@ export default function App() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState(null);
     const [currentFilter, setCurrentFilter] = useState('all');
+    const [heroLoaded, setHeroLoaded] = useState(false);
 
     // --- グローバルスタイルの注入 ---
     useEffect(() => {
@@ -97,14 +98,12 @@ export default function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [lightboxIndex, displayedPhotos.length]);
 
-    // 背景スクロール固定
     useEffect(() => {
         if (lightboxIndex !== null) document.body.style.overflow = 'hidden';
-        else document.body.style.overflow = 'auto';
+        else document.body.style.overflow = '';
     }, [lightboxIndex]);
 
-    // --- ヒーロー画像の焼き込みエフェクト状態 ---
-    const [heroLoaded, setHeroLoaded] = useState(false);
+    // --- ヒーロー画像のロード検知 ---
     useEffect(() => {
         const img = new Image();
         img.src = "images/yu.png";
@@ -113,7 +112,7 @@ export default function App() {
     }, []);
 
     return (
-        <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white">
+        <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
             
             {/* --- Header --- */}
             <header className="fixed w-full z-40 bg-black/80 backdrop-blur-md border-b border-gray-800 transition-all duration-300">
@@ -260,7 +259,7 @@ export default function App() {
                 <div className="relative z-10 container mx-auto max-w-3xl">
                     <FadeInSection>
                         <h2 className="text-3xl md:text-5xl font-bold mb-16 brand-font tracking-[0.2em] text-center text-white leading-tight">
-                            What is <br className="md:hidden" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
+                            What's<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
                         </h2>
                     </FadeInSection>
                     
@@ -387,6 +386,7 @@ export default function App() {
                                 撮影の依頼、コラボレーション、あるいは単なるご挨拶でも。<br />
                                 お気軽にご連絡ください。
                             </p>
+                            
                             <div className="flex flex-col items-center gap-6">
                                 <a href="mailto:DSL@design4qol.com" className="group inline-flex items-center gap-4 px-10 py-4 border border-gray-600 text-white rounded-sm hover:bg-white hover:text-black transition-all duration-500 text-sm tracking-[0.2em] brand-font overflow-hidden relative">
                                     <span className="absolute inset-0 w-full h-full -mt-1 rounded-sm opacity-30 bg-gradient-to-b from-transparent via-transparent to-black group-hover:opacity-0 transition-opacity"></span>
@@ -396,6 +396,7 @@ export default function App() {
                                     <span className="relative z-10">CONTACT ME</span>
                                 </a>
 
+                                {/* Instagramの導線 */}
                                 <a href="https://instagram.com/dark_side_luck" target="_blank" rel="noreferrer" className="group p-2 text-gray-500 hover:text-white transition duration-300 flex items-center justify-center gap-3 text-xs tracking-widest mt-4">
                                     <svg className="w-6 h-6 opacity-60 group-hover:opacity-100 transition-opacity duration-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
