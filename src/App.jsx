@@ -53,13 +53,25 @@ let isSimulationMode = true;
 
 try {
     if (typeof window !== 'undefined' && window.__firebase_config) {
-        const firebaseConfig = JSON.parse(window.__firebase_config);
-        firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-        auth = getAuth(firebaseApp);
-        db = getFirestore(firebaseApp);
-        storage = getStorage(firebaseApp);
-        isSimulationMode = false;
-        console.log("Firebase 接続完了: 本番モード");
+        let firebaseConfig = null;
+        
+        // 【頑強なパース処理】文字列でもオブジェクトの直接参照でも、100%エラーを起こさず抽出します
+        if (typeof window.__firebase_config === 'string') {
+            firebaseConfig = JSON.parse(window.__firebase_config);
+        } else if (typeof window.__firebase_config === 'object') {
+            firebaseConfig = window.__firebase_config;
+        }
+
+        if (firebaseConfig && firebaseConfig.apiKey) {
+            firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+            auth = getAuth(firebaseApp);
+            db = getFirestore(firebaseApp);
+            storage = getStorage(firebaseApp);
+            isSimulationMode = false;
+            console.log("Firebase 接続完了: 本番モード");
+        } else {
+            console.log("Firebase 設定のキーが不完全です: シミュレーションモード");
+        }
     } else {
         console.log("Firebase 設定未検出: シミュレーションモード（ローカルテスト用）");
     }
@@ -203,8 +215,6 @@ export default function App() {
         // リアルタイムリスナーの設置
         const unsubscribeSnapshot = onSnapshot(photosCollection, (snapshot) => {
             if (snapshot.empty) {
-                // 【点滅バグの原因を徹底修正】
-                // 一般閲覧者の権限では書き込めない自動書き込み(setDoc)を完全に排除し、安全にデフォルト配列をセットします
                 console.log("Firestore空状態検出: ローカル初期データを使用します");
                 setPhotos(DEFAULT_PHOTOS);
             } else {
@@ -648,7 +658,7 @@ export default function App() {
                                         </p>
                                         
                                         <div className="text-gray-400 leading-loose mb-10 space-y-4 text-sm font-light">
-                                            <div><span className="text-gray-300 font-medium tracking-widest text-xs border-b border-gray-700 pb-1 mb-2 inline-block">興味 • 関心</span><br />VIPな女 of ライフ ／ 無の境地 ／ 脳に補正された世界とされていない世界 ／ 人体のメカニズム</div>
+                                            <div><span className="text-gray-300 font-medium tracking-widest text-xs border-b border-gray-700 pb-1 mb-2 inline-block">興味 • 関心</span><br />VIPな女の人生 ／ 無の境地 ／ 脳に補正された世界とされていない世界 ／ 人体のメカニズム</div>
                                             <div><span className="text-gray-300 font-medium tracking-widest text-xs border-b border-gray-700 pb-1 mb-2 inline-block">やっていること</span><br />ひとりブレスト ／ 常識を疑い無条件では従わない ／ エスノメソドロジー</div>
                                             <div><span className="text-gray-300 font-medium tracking-widest text-xs border-b border-gray-700 pb-1 mb-2 inline-block">やりたくないこと</span><br />群れること ／ 脳中心の判断 ／ 陰口を聞かされること</div>
                                         </div>
