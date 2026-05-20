@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "dark-side-luck",
     "public": "dist",
     "ignore": [
       "firebase.json",

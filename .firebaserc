@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "dark-side-luck"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
