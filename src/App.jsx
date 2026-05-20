@@ -597,10 +597,7 @@ export default function App() {
                                         <p className="mb-6">
                                             撮影ジャンルとしては、自分で言うとすると「（目撃した）記録」になると思います。自ら光源を作り出したり再現したりすることは無く、その日その時間その場で何に対峙してそれをどのように切り取ったのか、あるいは何を考えていたのか。を大切にしています。
                                         </p>
-                                        <p className="mb-6">
-                                            生涯最初で最後の群写真作品として「<a href="https://1500.design4qol.com/" target="_blank" rel="noreferrer" className="text-white border-b border-gray-600 hover:text-yellow-500 hover:border-yellow-500 transition duration-300 pb-1">1500 portraits project</a>」を展開中です。<br />
-                                            「存在の証明」をテーマに活動していこうと思っております。
-                                        </p>
+                                       
                                         <p>
                                             ネイチャーも人物のスナップも乗り物も建物も私のテーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。
                                         </p>
