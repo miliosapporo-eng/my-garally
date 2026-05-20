@@ -1,7 +1,14 @@
 {
   "projects": {
-    "default": "dark-side-luck"
+    "default": "dark-side-luck" 
   },
-  "targets": {},
-  "etags": {}
+  "targets": {
+    "YOUR_PROJECT_ID": {
+      "hosting": {
+        "dark-side-luck": [
+          "dark-side-luck"
+        ]
+      }
+    }
+  }
 }
