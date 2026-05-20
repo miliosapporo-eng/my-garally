@@ -11,6 +11,19 @@
     <!-- Reactがこの中にすべてのUIを構築します -->
     <div id="root"></div>
     
+    <!-- Firebaseのアクセス設定をReact側に安全に受け渡す設定 -->
+    <script>
+      window.__firebase_config = JSON.stringify({
+        apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
+        authDomain: "dark-side-luck.firebaseapp.com",
+        projectId: "dark-side-luck",
+        storageBucket: "dark-side-luck.firebasestorage.app",
+        messagingSenderId: "43203104616",
+        appId: "1:43203104616:web:cf3f08e99b9c8964ead0dd",
+        measurementId: "G-FMGKCPQE9T"
+      });
+    </script>
+
     <!-- Viteのエントリースクリプト -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
