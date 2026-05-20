@@ -4,6 +4,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
     getAuth, 
     signInAnonymously, 
+    signInWithCustomToken,
     signInWithEmailAndPassword, 
     onAuthStateChanged,
     signOut 
@@ -43,7 +44,6 @@ const DEFAULT_PHOTOS = [
 ];
 
 // --- Firebase の初期化設定 ---
-// 環境変数（__firebase_config）が提供されている場合はそれを使用し、無ければシミュレーションモードで動かします
 const appId = "dark-side-luck";
 let firebaseApp = null;
 let auth = null;
@@ -148,7 +148,7 @@ export default function App() {
         };
     }, []);
 
-    // --- 1. 認証の初期化 & 匿名サインイン (RULE 3) ---
+    // --- 1. 認証の初期化 & カスタムトークン/匿名サインインの優先処理 (RULE 3) ---
     useEffect(() => {
         if (isSimulationMode) {
             // シミュレーションモード: ローカルストレージからデータをロード
@@ -161,9 +161,14 @@ export default function App() {
 
         const initAuthAndSync = async () => {
             try {
-                // まず匿名認証を完了させる (RULE 3: Auth Before Queries)
-                await signInAnonymously(auth);
-                console.log("匿名サインイン完了");
+                // RULE 3 に従い、__initial_auth_token が存在する場合はカスタムトークンを最優先で使用
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("カスタムトークンによるサインイン完了");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("匿名サインイン完了");
+                }
             } catch (err) {
                 console.error("サインインに失敗しました:", err);
             }
@@ -198,11 +203,9 @@ export default function App() {
         // リアルタイムリスナーの設置
         const unsubscribeSnapshot = onSnapshot(photosCollection, (snapshot) => {
             if (snapshot.empty) {
-                // 初回起動などでFirestoreが空の場合、初期データをFirestoreに自動書き込みして同期する
-                console.log("Firestoreが空のため、初期データをセットアップします...");
-                DEFAULT_PHOTOS.forEach(async (photo) => {
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id), photo);
-                });
+                // 【点滅バグの原因を徹底修正】
+                // 一般閲覧者の権限では書き込めない自動書き込み(setDoc)を完全に排除し、安全にデフォルト配列をセットします
+                console.log("Firestore空状態検出: ローカル初期データを使用します");
                 setPhotos(DEFAULT_PHOTOS);
             } else {
                 const loadedPhotos = [];
@@ -216,6 +219,8 @@ export default function App() {
             }
         }, (error) => {
             console.error("Firestoreの読み込み中にエラーが発生しました:", error);
+            // エラー時（未認証タイミングなど）もバグを防ぐためにフォールバック
+            setPhotos(DEFAULT_PHOTOS);
         });
 
         return () => unsubscribeSnapshot();
@@ -238,6 +243,7 @@ export default function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [lightboxIndex, displayedPhotos.length]);
 
+    // 【スクロールバグ修正】ライトボックス表示時のみスクロールロックする
     useEffect(() => {
         if (lightboxIndex !== null) {
             document.body.style.overflow = 'hidden';
@@ -585,7 +591,7 @@ export default function App() {
                                 <FadeInSection delay={200}>
                                     <h3 className="text-lg md:text-xl font-medium text-white mt-16 mb-6 tracking-wide">光輝くもの。尊いもの。それは愛なのかもしれない。</h3>
                                     <p>
-                                        僕が撮りたいと思うのは、輝かしい存在が目の前にあった時なのだということが分かりました。そして、その光輝くものは影を生む。また、同じ一辺倒の明るさの中にいては、それらは輝きを放てないでしょう。少しほの暗い方がいいのかもしれない。あるいは、完全な闇の中の方がいいのかもしれない。つまりは、暗闇の中に差し込む一筋の光。それこそが僕の撮っているものなのだ。と、腑に落ちたのでした。僕から見た貴方はそれだけ尊いものなのです。
+                                        僕が撮りたいと思うのは、輝かしい存在が目の前にあった時なのだということが分かりました。そして、その光輝くものは影を生む。また、同じ一辺倒の明るさの中にいては、それらは輝きを放てないでしょう。少しほの暗い方がいいのかもしれない。あるいは、完全な闇の中の方がいいのかもしれない。つまりは、暗闇の中に差し込む一筋の光。それこそが僕の撮っているものなのだ。と, 腑に落ちたのでした。僕から見た貴方はそれだけ尊いものなのです。
                                     </p>
                                 </FadeInSection>
 
