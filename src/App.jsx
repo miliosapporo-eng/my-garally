@@ -239,12 +239,12 @@ export default function App() {
     }, [lightboxIndex, displayedPhotos.length]);
 
     useEffect(() => {
-        if (lightboxIndex !== null || currentView !== 'portfolio') {
+        if (lightboxIndex !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
         }
-    }, [lightboxIndex, currentView]);
+    }, [lightboxIndex]);
 
     // --- ヒーロー画像のロード検知 ---
     useEffect(() => {
