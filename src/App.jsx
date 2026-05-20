@@ -33,7 +33,7 @@ const FadeInSection = ({ children, delay = 0, className = "" }) => {
                     observer.unobserve(entry.target);
                 }
             });
-        }, { threshold: 0.1 });
+        }, { threshold: 0.1 }); // 10%見えたら発火
 
         const currentRef = domRef.current;
         if (currentRef) observer.observe(currentRef);
@@ -116,6 +116,7 @@ export default function App() {
         img.onerror = () => setTimeout(() => setHeroLoaded(true), 100);
     }, []);
 
+
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white">
             
@@ -197,7 +198,7 @@ export default function App() {
                         <h2 className="text-3xl md:text-4xl font-bold mb-10 brand-font tracking-widest text-white">Selected Works</h2>
                         
                         <div className="flex flex-wrap justify-center gap-3">
-                            {['all', 'landscape', 'portrait', 'urban', 'snap', 'nature', 'journey'].map((filter) => (
+                            {['all', 'landscape', 'portrait', 'urban', 'snap', 'animal', 'nature', 'journey'].map((filter) => (
                                 <button
                                     key={filter}
                                     onClick={() => setCurrentFilter(filter)}
@@ -265,10 +266,10 @@ export default function App() {
                                 この自分自身のブランドを作ろうとした時、僕はどうして、何を、どんな時にレンズを向けてシャッターを切っているのだろう。と過去これまで撮ってきた写真を数々を見返していました。幸いなことに、職業カメラマンであった期間は無いと言って等しいので、残っている写真はほぼ全て自分自身の動機とセンスによって撮られたものだったので、その分析に時間は要しませんでした。
                             </p>
                             <p className="mb-6">
-                                僕の撮影歴の始まりはライブステージでした。そこからストリートスナップ、証明写真、ポートレート、ナイトクラブイベント、ツーリズム（風景）と多岐に広がっていきましたが、結局共通項と言えば、一般的な話「光と影」に辿り着いたのでした。
+                                用の撮影歴の始まりはライブステージでした。そこからストリートスナップ、証明写真、ポートレート、ナイトクラブイベント、ツーリズム（風景）と多岐に広がっていきましたが、結局共通項と言えば、一般的な話「光と影」に辿り着いたのでした。
                             </p>
                             <p className="mb-6">
-                                撮影というのは、読んで字の如く「影を撮る」ことなのですが、影とはすなわち、光が何かしらの物体に当たった時に現れるもので、撮影者その光と影の美しさを見ているのです。
+                                撮影というのは、読んで字の如く「影を撮る」ことなのですが、影とはすなわち、光が何かしらの物体に当たった時に現れるもので、撮影者はその光と影の美しさを見ているのです。
                             </p>
                             <p>
                                 僕が切り取ってきた世界に写っていたのは、ライブステージで汗を飛び散らせて情熱を爆発させるバンドマン、あるひと夜の儚いパーティタイムを楽しむビューティフルピープル、掛け替えない幸福な時間の一瞬は…全てキラキラ輝いていました。さて、これを何と言い表そうか。
@@ -293,7 +294,7 @@ export default function App() {
                                     「存在の証明」をテーマに活動していこうと思っております。
                                 </p>
                                 <p>
-                                    ネイチャーも人物のスナップも乗り物も建物も私のテーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messangerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。
+                                    ネイチャーも人物のスナップも乗り物も建物も私のテーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たち代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。
                                 </p>
                             </div>
                         </FadeInSection>
@@ -372,20 +373,11 @@ export default function App() {
                                 撮影の依頼、コラボレーション、あるいは単なるご挨拶でも。<br />
                                 お気軽にご連絡ください。
                             </p>
-                            
-                            <div className="flex flex-col items-center gap-8">
-                                <a href="mailto:DSL@design4qol.com" className="group inline-flex items-center gap-4 px-10 py-4 border border-gray-600 text-white rounded-sm hover:bg-white hover:text-black transition-all duration-500 text-sm tracking-[0.2em] brand-font overflow-hidden relative">
-                                    <span className="absolute inset-0 w-full h-full -mt-1 rounded-sm opacity-30 bg-gradient-to-b from-transparent via-transparent to-black group-hover:opacity-0 transition-opacity"></span>
-                                    <Mail size={16} className="relative z-10" />
-                                    <span className="relative z-10">CONTACT ME</span>
-                                </a>
-
-                                {/* InstagramのリンクをContact配下に美しく設置 */}
-                                <a href="https://instagram.com/dark_side_luck" target="_blank" rel="noreferrer" className="group p-2 text-gray-500 hover:text-white transition-all duration-500 flex items-center justify-center gap-2 text-xs tracking-widest">
-                                    <Instagram size={20} strokeWidth={1.5} className="opacity-60 group-hover:opacity-100 transition-opacity" />
-                                    <span className="opacity-60 group-hover:opacity-100 transition-opacity">FOLLOW ON INSTAGRAM</span>
-                                </a>
-                            </div>
+                            <a href="mailto:DSL@design4qol.com" className="group inline-flex items-center gap-4 px-10 py-4 border border-gray-600 text-white rounded-sm hover:bg-white hover:text-black transition-all duration-500 text-sm tracking-[0.2em] brand-font overflow-hidden relative">
+                                <span className="absolute inset-0 w-full h-full -mt-1 rounded-sm opacity-30 bg-gradient-to-b from-transparent via-transparent to-black group-hover:opacity-0 transition-opacity"></span>
+                                <Mail size={16} className="relative z-10" />
+                                <span className="relative z-10">CONTACT ME</span>
+                            </a>
                         </div>
                     </FadeInSection>
                 </div>
