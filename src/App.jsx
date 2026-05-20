@@ -140,7 +140,11 @@ export default function App() {
                         </a>
                     </nav>
                 </div>
-
+{/* ロゴ画像の直後あたりに、一時的に目立つテストテキストを挟みます */}
+<a href="#" className="block hover:opacity-80 transition">
+    <img src="images/logo.png" alt="Dark Side Luck Logo" className="h-8 md:h-10 w-auto object-contain" />
+</a>
+<span className="text-red-500 text-3xl font-bold bg-yellow-300 px-4 py-2 z-50">！！！テスト中！！！</span>
                 {/* Mobile Menu */}
                 {isMenuOpen && (
                     <div className="md:hidden bg-black/95 backdrop-blur-md border-t border-gray-800 absolute w-full left-0">
