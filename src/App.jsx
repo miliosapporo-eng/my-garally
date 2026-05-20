@@ -43,7 +43,17 @@ const DEFAULT_PHOTOS = [
     { id: "12", url: "images/entry/m.jpg", fullUrl: "images/entry/m.jpg", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
 
-// --- Firebase の初期化設定 ---
+// --- 🌟 【真犯人退治】Firebase設定をコードに100%直接埋め込み 🌟 ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
+    authDomain: "dark-side-luck.firebaseapp.com",
+    projectId: "dark-side-luck",
+    storageBucket: "dark-side-luck.firebasestorage.app",
+    messagingSenderId: "43203104616",
+    appId: "1:43203104616:web:cf3f08e99b9c8964ead0dd",
+    measurementId: "G-FMGKCPQE9T"
+};
+
 const appId = "dark-side-luck";
 let firebaseApp = null;
 let auth = null;
@@ -51,32 +61,18 @@ let db = null;
 let storage = null;
 let isSimulationMode = true;
 
+// 直接埋め込んだConfigを使用して確実に本番初期化を試みる（パース順エラーを完全撃退）
 try {
-    if (typeof window !== 'undefined' && window.__firebase_config) {
-        let firebaseConfig = null;
-        
-        // window.__firebase_configが文字列かオブジェクトか自動判定してパース
-        if (typeof window.__firebase_config === 'string') {
-            firebaseConfig = JSON.parse(window.__firebase_config);
-        } else if (typeof window.__firebase_config === 'object') {
-            firebaseConfig = window.__firebase_config;
-        }
-
-        if (firebaseConfig && firebaseConfig.apiKey) {
-            firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-            auth = getAuth(firebaseApp);
-            db = getFirestore(firebaseApp);
-            storage = getStorage(firebaseApp);
-            isSimulationMode = false;
-            console.log("Firebase 接続完了: 本番モード");
-        } else {
-            console.log("Firebase 設定のキーが不完全です: シミュレーションモード");
-        }
-    } else {
-        console.log("Firebase 設定未検出: シミュレーションモード（ローカルテスト用）");
+    if (firebaseConfig && firebaseConfig.apiKey) {
+        firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(firebaseApp);
+        db = getFirestore(firebaseApp);
+        storage = getStorage(firebaseApp);
+        isSimulationMode = false;
+        console.log("Firebase 100%接続完了: 本番稼働モード");
     }
 } catch (error) {
-    console.warn("Firebase の初期化に失敗しました。シミュレーションモードで起動します。", error);
+    console.warn("Firebase の直接初期化に失敗しました。シミュレーションモードに移行します。", error);
 }
 
 // --- スクロールアニメーション用コンポーネント (FadeInUp) ---
@@ -229,7 +225,7 @@ export default function App() {
             }
         }, (error) => {
             console.error("Firestoreの読み込み中にエラーが発生しました:", error);
-            // エラー時（未認証タイミングなど）もバグを防ぐためにフォールバック
+            // エラー時もバグを防ぐためにフォールバック
             setPhotos(DEFAULT_PHOTOS);
         });
 
@@ -324,7 +320,6 @@ export default function App() {
         const timestamp = Date.now();
 
         if (isSimulationMode) {
-            // シミュレーションモード: 選択されたファイルをBase64またはダミーURLに変換してローカルストレージへ保存
             const handleSimulate = (fileUrl) => {
                 const newPhoto = {
                     id: newId,
@@ -338,7 +333,6 @@ export default function App() {
                 setPhotos(updatedPhotos);
                 localStorage.setItem('dsl_cached_photos', JSON.stringify(updatedPhotos));
                 
-                // フォームリセット
                 setUploadTitle('');
                 setSelectedFile(null);
                 setIsUploading(false);
@@ -350,19 +344,16 @@ export default function App() {
                 reader.onloadend = () => handleSimulate(reader.result);
                 reader.readAsDataURL(selectedFile);
             } else {
-                // ファイル未選択時はプレースホルダー
                 handleSimulate("https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80");
             }
             return;
         }
 
         try {
-            // 1. Firebase Storage にファイルをアップロード
             const fileRef = ref(storage, `artifacts/${appId}/photos/${newId}_${selectedFile.name}`);
             const uploadResult = await uploadBytes(fileRef, selectedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
 
-            // 2. Firestoreにメタデータを保存 (Strict Path: RULE 1)
             const photoData = {
                 id: newId,
                 url: downloadUrl,
@@ -370,15 +361,13 @@ export default function App() {
                 title: uploadTitle,
                 category: uploadCategory,
                 createdAt: timestamp,
-                storagePath: fileRef.fullPath // 後で削除するために保存パスも記録
+                storagePath: fileRef.fullPath
             };
 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', newId), photoData);
 
-            // フォームリセット
             setUploadTitle('');
             setSelectedFile(null);
-            // ファイルインプットをクリア
             const fileInput = document.getElementById('photo-file-input');
             if (fileInput) fileInput.value = '';
 
@@ -404,10 +393,7 @@ export default function App() {
         }
 
         try {
-            // 1. Firestore からメタデータを削除 (Strict Path: RULE 1)
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id));
-
-            // 2. Storageから画像本体を削除 (パスが登録されている場合)
             if (photo.storagePath) {
                 const fileRef = ref(storage, photo.storagePath);
                 await deleteObject(fileRef);
@@ -791,10 +777,20 @@ export default function App() {
                     <div className="max-w-md w-full bg-gray-900/60 border border-gray-800 p-8 rounded-sm backdrop-blur-md">
                         <div className="text-center mb-8">
                             <img src="images/logo.png" alt="Logo" className="h-8 mx-auto mb-6 object-contain" />
-                            <h2 className="text-xl font-bold tracking-widest text-white brand-font">ADMIN LOGIN</h2>
-                            {isSimulationMode && (
-                                <p className="text-yellow-600 text-xs mt-2 font-medium">※ローカル・シミュレーションモードで起動中</p>
-                            )}
+                            <h2 className="text-xl font-bold tracking-widest text-white brand-font mb-4">ADMIN LOGIN</h2>
+                            
+                            {/* 🌟 【バグ解消】ログイン前の画面でも、100%現在の接続ステータスを可視化 🌟 */}
+                            <div className="mb-6">
+                                {isSimulationMode ? (
+                                    <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-3 py-1 rounded-full font-medium tracking-wide">
+                                        ⚠️ Simulation Mode (Local Test)
+                                    </span>
+                                ) : (
+                                    <span className="text-xs bg-green-500/10 text-green-500 border border-green-500/20 px-3 py-1 rounded-full font-medium tracking-wide">
+                                        🟢 Cloud Production Connected
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         
                         <form onSubmit={handleAdminLogin} className="space-y-6">
