@@ -16,8 +16,7 @@ import {
     setDoc, 
     getDocs, 
     addDoc,
-    deleteDoc, 
-    onSnapshot 
+    deleteDoc 
 } from 'firebase/firestore';
 import { 
     getStorage, 
@@ -43,7 +42,7 @@ const DEFAULT_PHOTOS = [
     { id: "12", url: "images/entry/m.jpg", fullUrl: "images/entry/m.jpg", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
 
-// --- 🌟 【真犯人退治】Firebase設定をコードに100%直接埋め込み 🌟 ---
+// --- Firebase設定をコードに直接埋め込み ---
 const firebaseConfig = {
     apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
     authDomain: "dark-side-luck.firebaseapp.com",
@@ -61,7 +60,6 @@ let db = null;
 let storage = null;
 let isSimulationMode = true;
 
-// 直接埋め込んだConfigを使用して確実に本番初期化を試みる（パース順エラーを完全撃退）
 try {
     if (firebaseConfig && firebaseConfig.apiKey) {
         firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -115,7 +113,7 @@ export default function App() {
     const [currentFilter, setCurrentFilter] = useState('all');
     const [heroLoaded, setHeroLoaded] = useState(false);
     
-    // データ管理用のステート
+    // データ管理用のステート（初期値はデフォルトアセット）
     const [photos, setPhotos] = useState(DEFAULT_PHOTOS);
     const [authUser, setAuthUser] = useState(null);
     const [adminEmail, setAdminEmail] = useState('');
@@ -159,7 +157,6 @@ export default function App() {
     // --- 1. 認証の初期化 & カスタムトークン/匿名サインインの優先処理 (RULE 3) ---
     useEffect(() => {
         if (isSimulationMode) {
-            // シミュレーションモード: ローカルストレージからデータをロード
             const cached = localStorage.getItem('dsl_cached_photos');
             if (cached) {
                 setPhotos(JSON.parse(cached));
@@ -169,7 +166,6 @@ export default function App() {
 
         const initAuthAndSync = async () => {
             try {
-                // RULE 3 に従い、__initial_auth_token が存在する場合はカスタムトークンを最優先で使用
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                     console.log("カスタムトークンによるサインイン完了");
@@ -188,7 +184,6 @@ export default function App() {
         const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
             if (user) {
                 setAuthUser(user);
-                // 匿名ユーザーではなく、メールログインしている場合は直接ダッシュボードへ
                 if (!user.isAnonymous) {
                     setCurrentView('admin_dashboard');
                 }
@@ -200,36 +195,54 @@ export default function App() {
         return () => unsubscribeAuth();
     }, []);
 
-    // --- 2. Firestoreからのリアルタイムデータ受信 (RULE 1 & 2) ---
+    // --- 2. Firestoreからのワンタイムデータ受信 ＆ キャッシュ活用 (超強力な通信量削減) ---
     useEffect(() => {
         if (isSimulationMode) return;
-        if (!authUser) return; // 認証が完了するまでデータ取得を待機 (RULE 3)
+        if (!authUser) return;
 
-        // 厳格なセキュリティパスを使用 (RULE 1)
-        const photosCollection = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-
-        // リアルタイムリスナーの設置
-        const unsubscribeSnapshot = onSnapshot(photosCollection, (snapshot) => {
-            if (snapshot.empty) {
-                console.log("Firestore空状態検出: ローカル初期データを使用します");
-                setPhotos(DEFAULT_PHOTOS);
-            } else {
-                const loadedPhotos = [];
-                snapshot.forEach((doc) => {
-                    loadedPhotos.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // 複雑なorderByを使用せず、メモリ上で作成日時順（昇順）にソート (RULE 2)
-                loadedPhotos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-                setPhotos(loadedPhotos);
+        // 【通信量削減対策 A】データベースを叩く前に、まずはブラウザに保存された前回キャッシュを即表示（通信ゼロ・一瞬で表示）
+        const cachedPhotos = localStorage.getItem('dsl_cached_firestore_photos');
+        if (cachedPhotos) {
+            try {
+                setPhotos(JSON.parse(cachedPhotos));
+            } catch (e) {
+                console.warn("キャッシュの復元に失敗しました。再取得します。");
             }
-        }, (error) => {
-            console.error("Firestoreの読み込み中にエラーが発生しました:", error);
-            // エラー時もバグを防ぐためにフォールバック
-            setPhotos(DEFAULT_PHOTOS);
-        });
+        }
 
-        return () => unsubscribeSnapshot();
+        const fetchPhotosOnce = async () => {
+            try {
+                const photosCollection = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+                
+                // 【通信量削減対策 B】リアルタイム監視(onSnapshot)を廃止し、1回限りの取得(getDocs)に変更
+                const snapshot = await getDocs(photosCollection);
+                
+                if (snapshot.empty) {
+                    console.log("Firestore空状態検出: 初期データセットを使用");
+                    setPhotos(DEFAULT_PHOTOS);
+                } else {
+                    const loadedPhotos = [];
+                    snapshot.forEach((doc) => {
+                        loadedPhotos.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // 作成日時順にソート
+                    loadedPhotos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                    
+                    // 取得した最新データを画面に反映し、次回のために強力キャッシュ保存
+                    setPhotos(loadedPhotos);
+                    localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(loadedPhotos));
+                }
+            } catch (error) {
+                console.error("Firestoreのデータ取得エラー:", error);
+                // 通信エラー時は、キャッシュがない場合のみデフォルトアセットを表示
+                if (!cachedPhotos) {
+                    setPhotos(DEFAULT_PHOTOS);
+                }
+            }
+        };
+
+        fetchPhotosOnce();
     }, [authUser]);
 
     // フィルター処理
@@ -272,7 +285,6 @@ export default function App() {
         setLoginError('');
 
         if (isSimulationMode) {
-            // シミュレーション用ダミーログイン (admin@dsl.com / password)
             if (adminEmail === 'admin@dsl.com' && adminPassword === 'password') {
                 setAuthUser({ email: 'admin@dsl.com', isAnonymous: false });
                 setCurrentView('admin_dashboard');
@@ -350,10 +362,13 @@ export default function App() {
         }
 
         try {
+            // 【通信量削減対策 C】オリジナルをStorageにアップロード
             const fileRef = ref(storage, `artifacts/${appId}/photos/${newId}_${selectedFile.name}`);
             const uploadResult = await uploadBytes(fileRef, selectedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
 
+            // クラウドへの負担・転送量を抑えるため、urlとfullUrlに同じ元のダウンロードリンクを登録
+            // （将来的に手動でサムネイル画像を作る場合は、url項目に縮小画像のパスを指定できます）
             const photoData = {
                 id: newId,
                 url: downloadUrl,
@@ -365,6 +380,11 @@ export default function App() {
             };
 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', newId), photoData);
+
+            // データの再取得とキャッシュ更新を即時トリガー
+            const updated = [...photos, photoData];
+            setPhotos(updated);
+            localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(updated));
 
             setUploadTitle('');
             setSelectedFile(null);
@@ -398,6 +418,12 @@ export default function App() {
                 const fileRef = ref(storage, photo.storagePath);
                 await deleteObject(fileRef);
             }
+            
+            // ローカルキャッシュのデータも追従させて即同期
+            const updated = photos.filter(p => p.id !== photo.id);
+            setPhotos(updated);
+            localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(updated));
+
             alert("クラウドから写真を削除しました。");
         } catch (err) {
             console.error("削除エラー:", err);
@@ -577,7 +603,7 @@ export default function App() {
                                         僕の撮影歴の始まりはライブステージでした。そこからストリートスナップ、証明写真、ポートレート、ナイトクラブイベント、ツーリズム（風景）と多岐に広がっていきましたが、結局共通項と言えば、一般的な話「光と影」に辿り着いたのでした。
                                     </p>
                                     <p className="mb-6">
-                                        撮影というのは、読んで字の如く「影を撮る」ことなのですが、影とはすなわち、光が何かしらの物体に当たった時に現れるもので、撮影者はその光と影の美しさを見ているのです。
+                                        撮影というのは、読んで字の如く「影を撮る」ことなのですが、影とはすなわち、光が何かしらの物体に当たった時に現れるもので、撮影者その光と影の美しさを見ているのです。
                                     </p>
                                     <p>
                                         僕が切り取ってきた世界に写っていたのは、ライブステージで汗を飛び散らせて情熱を爆発させるバンドマン、あるひと夜の儚いパーティタイムを楽しむビューティフルピープル、掛け替えない幸福な時間の一瞬は…全てキラキラ輝いていました。さて、これを何と言い表そうか。
@@ -597,7 +623,10 @@ export default function App() {
                                         <p className="mb-6">
                                             撮影ジャンルとしては、自分で言うとすると「（目撃した）記録」になると思います。自ら光源を作り出したり再現したりすることは無く、その日その時間その場で何に対峙してそれをどのように切り取ったのか、あるいは何を考えていたのか。を大切にしています。
                                         </p>
-                                       
+                                        <p className="mb-6">
+                                            生涯最初で最後の群写真作品として「<a href="https://1500.design4qol.com/" target="_blank" rel="noreferrer" className="text-white border-b border-gray-600 hover:text-yellow-500 hover:border-yellow-500 transition duration-300 pb-1">1500 portraits project</a>」を展開中です。<br />
+                                            「存在の証明」をテーマに活動していこうと思っております。
+                                        </p>
                                         <p>
                                             ネイチャーも人物のスナップも乗り物も建物も私のテーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。
                                         </p>
@@ -753,6 +782,7 @@ export default function App() {
                             </button>
                             
                             <div className="max-w-6xl w-full flex flex-col items-center justify-center">
+                                {/* 通信削減のため、ライトボックスの拡大表示時のみ高画質版の fullUrl をロード */}
                                 <img 
                                     src={displayedPhotos[lightboxIndex].fullUrl} 
                                     alt={displayedPhotos[lightboxIndex].title} 
@@ -776,7 +806,6 @@ export default function App() {
                             <img src="images/logo.png" alt="Logo" className="h-8 mx-auto mb-6 object-contain" />
                             <h2 className="text-xl font-bold tracking-widest text-white brand-font mb-4">ADMIN LOGIN</h2>
                             
-                            {/* 🌟 【バグ解消】ログイン前の画面でも、100%現在の接続ステータスを可視化 🌟 */}
                             <div className="mb-6">
                                 {isSimulationMode ? (
                                     <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-3 py-1 rounded-full font-medium tracking-wide">
@@ -839,10 +868,9 @@ export default function App() {
                 </div>
             )}
 
-            {/* --- 管理者ダッシュボード (写真の追加・削除) --- */}
+            {/* --- 管理者ダッシュボード --- */}
             {currentView === 'admin_dashboard' && (
                 <div className="min-h-screen bg-black text-gray-100 flex flex-col">
-                    {/* ダッシュボードヘッダー */}
                     <header className="bg-gray-950 border-b border-gray-900 px-6 py-4 flex justify-between items-center">
                         <div className="flex items-center gap-4">
                             <img src="images/logo.png" alt="Logo" className="h-8 object-contain" />
@@ -868,8 +896,6 @@ export default function App() {
                     </header>
 
                     <div className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        
-                        {/* 左：新規写真追加フォーム */}
                         <div className="lg:col-span-1">
                             <div className="bg-gray-900/40 border border-gray-800 p-6 rounded-sm backdrop-blur-md sticky top-6">
                                 <h3 className="text-lg font-bold tracking-widest mb-6 text-white brand-font border-b border-gray-800 pb-3">ADD NEW PHOTO</h3>
@@ -947,7 +973,6 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* 右：現在公開されている写真の一覧・管理 */}
                         <div className="lg:col-span-2">
                             <div className="bg-gray-900/20 border border-gray-800 p-6 rounded-sm backdrop-blur-md">
                                 <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-3">
