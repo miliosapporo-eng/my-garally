@@ -157,6 +157,33 @@ export default function App() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgressMsg, setUploadProgressMsg] = useState('');
 
+    // --- ブラウザ上でのJavaScriptエラー検知＆画面描画システム ---
+    const [diagnosticError, setDiagnosticError] = useState(null);
+
+    useEffect(() => {
+        const handleError = (event) => {
+            setDiagnosticError({
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                error: event.error ? event.error.stack : 'No stack trace available'
+            });
+        };
+        const handleRejection = (event) => {
+            setDiagnosticError({
+                message: `Promise Rejection: ${event.reason}`,
+                error: event.reason ? event.reason.stack : 'No stack trace available'
+            });
+        };
+        window.addEventListener('error', handleError);
+        window.addEventListener('unhandledrejection', handleRejection);
+        return () => {
+            window.removeEventListener('error', handleError);
+            window.removeEventListener('unhandledrejection', handleRejection);
+        };
+    }, []);
+
     // --- グローバルスタイルの注入 ---
     useEffect(() => {
         const link = document.createElement('link');
@@ -218,14 +245,30 @@ export default function App() {
         return () => unsubscribeAuth();
     }, []);
 
-    // --- データ取得 ---
+    // --- データ取得 ＆ 🌟 【一撃解決】自動キャッシュクレンジング & 拡張子補正 🌟 ---
     useEffect(() => {
-        if (isSimulationMode || !authUser) return;
-
+        if (isSimulationMode) return;
+        
+        // 【自己修復 A】ブラウザに残っている古いキャッシュを読み込みつつ、拡張子を自動で.webpに矯正
         const cachedPhotos = localStorage.getItem('dsl_cached_firestore_photos');
         if (cachedPhotos) {
-            try { setPhotos(JSON.parse(cachedPhotos)); } catch (e) { }
+            try { 
+                const parsed = JSON.parse(cachedPhotos);
+                const sanitized = parsed.map(p => {
+                    // もしキャッシュ内のローカルパス画像が古い拡張子のままなら強制的に.webpにする
+                    if (p.url && p.url.startsWith('images/entry/') && !p.url.endsWith('.webp')) {
+                        const baseUrl = p.url.substring(0, p.url.lastIndexOf('.'));
+                        return { ...p, url: `${baseUrl}.webp`, fullUrl: `${baseUrl}.webp` };
+                    }
+                    return p;
+                });
+                setPhotos(sanitized); 
+            } catch (e) { 
+                localStorage.removeItem('dsl_cached_firestore_photos');
+            }
         }
+
+        if (!authUser) return;
 
         const fetchPhotosOnce = async () => {
             try {
@@ -236,7 +279,26 @@ export default function App() {
                     setPhotos(DEFAULT_PHOTOS);
                 } else {
                     const loadedPhotos = [];
-                    snapshot.forEach((doc) => loadedPhotos.push({ id: doc.id, ...doc.data() }));
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        let url = data.url;
+                        let fullUrl = data.fullUrl;
+                        
+                        // 【自己修復 B】Firestoreに残っている古いJPG/PNGのローカル画像パスを、自動でWebPに置換
+                        if (url && url.startsWith('images/entry/') && !url.endsWith('.webp')) {
+                            url = `${url.substring(0, url.lastIndexOf('.'))}.webp`;
+                        }
+                        if (fullUrl && fullUrl.startsWith('images/entry/') && !fullUrl.endsWith('.webp')) {
+                            fullUrl = `${fullUrl.substring(0, fullUrl.lastIndexOf('.'))}.webp`;
+                        }
+
+                        loadedPhotos.push({ 
+                            id: doc.id, 
+                            ...data,
+                            url,
+                            fullUrl
+                        });
+                    });
                     loadedPhotos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
                     
                     setPhotos(loadedPhotos);
@@ -341,7 +403,6 @@ export default function App() {
         }
 
         try {
-            // ファイルの拡張子を強制的に .webp に書き換えて保存
             const baseFileName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
             const webpFileName = `${baseFileName}.webp`;
 
@@ -355,7 +416,6 @@ export default function App() {
 
             setUploadProgressMsg('3/3: クラウドのWebP保存庫へ安全に転送中...');
             
-            // Storageへの保存パス設定（拡張子はすべて.webpに統一）
             const thumbRef = ref(storage, `artifacts/${appId}/photos/thumb_${newId}_${webpFileName}`);
             const origRef = ref(storage, `artifacts/${appId}/photos/orig_${newId}_${webpFileName}`);
 
@@ -438,6 +498,21 @@ export default function App() {
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
             
+            {/* 【自己診断バナー】エラーが発生している時に画面最上部にデバッグ情報を自動描画 */}
+            {diagnosticError && (
+                <div className="fixed inset-x-0 top-0 z-[9999] bg-red-950 border-b-4 border-red-500 text-red-100 p-6 font-mono text-sm overflow-auto max-h-[50vh]">
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-red-600 text-white px-2 py-0.5 rounded text-xs font-bold animate-pulse">RUNTIME ERROR DETECTED</span>
+                        <button onClick={() => setDiagnosticError(null)} className="ml-auto text-red-300 hover:text-white text-xs border border-red-700 px-2 py-0.5 rounded">Close Banner</button>
+                    </div>
+                    <p className="font-bold text-lg text-white mb-2">{diagnosticError.message}</p>
+                    {diagnosticError.filename && (
+                        <p className="text-red-300 mb-1">📍 File: {diagnosticError.filename} (Line: {diagnosticError.lineno}, Col: {diagnosticError.colno})</p>
+                    )}
+                    <pre className="bg-black/40 p-3 rounded mt-2 text-xs text-red-200 overflow-x-auto whitespace-pre-wrap">{diagnosticError.error}</pre>
+                </div>
+            )}
+
             {currentView === 'portfolio' && (
                 <>
                     {/* Header */}
@@ -525,11 +600,23 @@ export default function App() {
                                         className="group relative overflow-hidden rounded-sm cursor-pointer bg-gray-900 aspect-[3/4] md:aspect-[4/3]"
                                         onClick={() => setLightboxIndex(index)}
                                     >
+                                        {/* 🌟 【自己修復 C】画像がリンク切れで？マークになった場合、自動的に.webpパスを試行するスマートフォールバック 🌟 */}
                                         <img 
                                             src={photo.url} 
                                             alt={photo.title} 
                                             loading="lazy" 
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                            onError={(e) => {
+                                                const currentSrc = e.target.src;
+                                                // もし.pngなどでエラーが起きていて、かつローカル画像を参照している場合、.webpに自動差し替え
+                                                if (!currentSrc.endsWith('.webp') && currentSrc.includes('/images/entry/')) {
+                                                    const basePath = currentSrc.substring(0, currentSrc.lastIndexOf('.'));
+                                                    e.target.src = `${basePath}.webp`;
+                                                } else {
+                                                    // それでもダメな場合の代替プレースホルダー
+                                                    e.target.src = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80";
+                                                }
+                                            }}
                                         />
                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-center p-4">
                                             <p className="text-xs text-yellow-500 uppercase tracking-[0.2em] mb-3 font-bold brand-font">{photo.category}</p>
@@ -553,7 +640,7 @@ export default function App() {
                         <div className="relative z-10 container mx-auto max-w-3xl">
                             <FadeInSection>
                                 <h2 className="text-3xl md:text-5xl font-bold mb-16 brand-font tracking-[0.2em] text-center text-white leading-tight">
-                                    What's<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
+                                    What is <br className="md:hidden" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
                                 </h2>
                             </FadeInSection>
                             <div className="space-y-10 text-gray-300 text-[15px] md:text-base leading-[2.2] font-light">
@@ -563,7 +650,7 @@ export default function App() {
                                 <FadeInSection delay={200}>
                                     <h3 className="text-lg md:text-xl font-medium text-white mt-12 mb-6 tracking-wide">発想のもとは「撮る」ということを言い換えるということ。</h3>
                                     <p className="mb-6">この自分自身のブランドを作ろうとした時、僕はどうして、何を、どんな時にレンズを向けてシャッターを切っているのだろう。と過去これまで撮ってきた写真を数々を見返していました。幸いなことに、職業カメラマンであった期間は無いと言って等しいので、残っている写真はほぼ全て自分自身の動機 and センスによって撮られたものだったので、その分析に時間は要しませんでした。</p>
-                                    <p className="mb-6">僕の撮影歴の始まりはライブステージでした。そこからストリートスナップ、証明写真、ポートレート、ナイトクラブイベント、ツーリズム（風景）と多岐に広がっていきましたが、結局共通項と言えば、一般的な話「光と影」に辿り着いたのでした。</p>
+                                    <p className="mb-6">僕の撮影歴の始まりはライブステージでした。そこからストリートスナップ、証明写真、ポートレート、ナイトクラブイベント、ツーリズム（風景）と多岐に広がっていきましたが、結局共通項と言えば、一般的な話「光と影」に辿り起きたのでした。</p>
                                     <p className="mb-6">撮影というのは、読んで字の如く「影を撮る」ことなのですが、影とはすなわち、光が何かしらの物体に当たった時に現れるもので、撮影者その光と影の美しさを見ているのです。</p>
                                     <p>僕が切り取ってきた世界に写っていたのは、ライブステージで汗を飛び散らせて情熱を爆発させるバンドマン、あるひと夜の儚いパーティタイムを楽しむビューティフルピープル、掛け替えない幸福な時間の一瞬は…全てキラキラ輝いていました。さて、これを何と言い表そうか。</p>
                                 </FadeInSection>
@@ -687,6 +774,13 @@ export default function App() {
                                     alt={displayedPhotos[lightboxIndex].title} 
                                     loading="lazy"
                                     className="max-h-[85vh] max-w-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300"
+                                    onError={(e) => {
+                                        const currentSrc = e.target.src;
+                                        if (!currentSrc.endsWith('.webp') && currentSrc.includes('/images/entry/')) {
+                                            const basePath = currentSrc.substring(0, currentSrc.lastIndexOf('.'));
+                                            e.target.src = `${basePath}.webp`;
+                                        }
+                                    }}
                                 />
                                 <div className="mt-6 text-center animate-in slide-in-from-bottom-4 duration-300">
                                     <h3 className="text-xl text-white font-light brand-font tracking-widest">{displayedPhotos[lightboxIndex].title}</h3>
