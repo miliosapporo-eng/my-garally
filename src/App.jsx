@@ -25,20 +25,20 @@ import {
     deleteObject 
 } from 'firebase/storage';
 
-// --- 初期写真データ ---
+// --- 初期写真データ（WebP対応：すべての拡張子を.webpに変更） ---
 const DEFAULT_PHOTOS = [
-    { id: "1", url: "images/entry/carp.png", fullUrl: "images/entry/carp.png", title: "80", category: "landscape", createdAt: 1716223200000 },
-    { id: "2", url: "images/entry/mtfuji.jpg", fullUrl: "images/entry/mtfuji.jpg", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
-    { id: "3", url: "images/entry/haku.jpg", fullUrl: "images/entry/haku.jpg", title: "HAKU", category: "nature", createdAt: 1716223202000 },
-    { id: "4", url: "images/entry/yamaguchi.jpg", fullUrl: "images/entry/yamaguchi.jpg", title: "YAMAGUCHI", category: "journey", createdAt: 1716223203000 },
-    { id: "5", url: "images/entry/hiroshima.jpg", fullUrl: "images/entry/hiroshima.jpg", title: "HIROSIHIMA", category: "journey", createdAt: 1716223204000 },
-    { id: "6", url: "images/entry/shimane.jpg", fullUrl: "images/entry/shimane.jpg", title: "SHIMANE", category: "journey", createdAt: 1716223205000 },
-    { id: "7", url: "images/entry/tottori.jpg", fullUrl: "images/entry/tottori.jpg", title: "TOTTORI", category: "journey", createdAt: 1716223206000 },
-    { id: "8", url: "images/entry/hyogo.jpg", fullUrl: "images/entry/hyogo.jpg", title: "HYOGO", category: "journey", createdAt: 1716223207000 },
-    { id: "9", url: "images/entry/niigata.jpg", fullUrl: "images/entry/niigata.jpg", title: "NIIGATA", category: "journey", createdAt: 1716223208000 },
-    { id: "10", url: "images/entry/california.png", fullUrl: "images/entry/california.png", title: "CALIFORNIA", category: "journey", createdAt: 1716223209000 },
-    { id: "11", url: "images/entry/yamagiwa.jpg", fullUrl: "images/entry/yamagiwa.jpg", title: "million dollar baby", category: "snap", createdAt: 1716223210000 },
-    { id: "12", url: "images/entry/m.jpg", fullUrl: "images/entry/m.jpg", title: "distance", category: "snap", createdAt: 1716223211000 }
+    { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
+    { id: "2", url: "images/entry/mtfuji.webp", fullUrl: "images/entry/mtfuji.webp", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
+    { id: "3", url: "images/entry/haku.webp", fullUrl: "images/entry/haku.webp", title: "HAKU", category: "nature", createdAt: 1716223202000 },
+    { id: "4", url: "images/entry/yamaguchi.webp", fullUrl: "images/entry/yamaguchi.webp", title: "YAMAGUCHI", category: "journey", createdAt: 1716223203000 },
+    { id: "5", url: "images/entry/hiroshima.webp", fullUrl: "images/entry/hiroshima.webp", title: "HIROSIHIMA", category: "journey", createdAt: 1716223204000 },
+    { id: "6", url: "images/entry/shimane.webp", fullUrl: "images/entry/shimane.webp", title: "SHIMANE", category: "journey", createdAt: 1716223205000 },
+    { id: "7", url: "images/entry/tottori.webp", fullUrl: "images/entry/tottori.webp", title: "TOTTORI", category: "journey", createdAt: 1716223206000 },
+    { id: "8", url: "images/entry/hyogo.webp", fullUrl: "images/entry/hyogo.webp", title: "HYOGO", category: "journey", createdAt: 1716223207000 },
+    { id: "9", url: "images/entry/niigata.webp", fullUrl: "images/entry/niigata.webp", title: "NIIGATA", category: "journey", createdAt: 1716223208000 },
+    { id: "10", url: "images/entry/california.webp", fullUrl: "images/entry/california.webp", title: "CALIFORNIA", category: "journey", createdAt: 1716223209000 },
+    { id: "11", url: "images/entry/yamagiwa.webp", fullUrl: "images/entry/yamagiwa.webp", title: "million dollar baby", category: "snap", createdAt: 1716223210000 },
+    { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
 
 // --- Firebase設定 ---
@@ -72,8 +72,8 @@ try {
     console.warn("Firebase の直接初期化に失敗しました。シミュレーションモードに移行します。", error);
 }
 
-// --- 通信量削減！サムネイル画像を自動生成する関数 ---
-const generateThumbnail = (file, maxWidth = 800) => {
+// --- 通信量削減！ブラウザ側で写真を次世代フォーマットWebPに自動リサイズ・圧縮する関数 ---
+const compressToWebP = (file, maxWidth, quality = 0.8) => {
     return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -83,6 +83,7 @@ const generateThumbnail = (file, maxWidth = 800) => {
                 let width = img.width;
                 let height = img.height;
 
+                // 最大幅に合わせて縮小
                 if (width > maxWidth) {
                     height = Math.round((height * maxWidth) / width);
                     width = maxWidth;
@@ -93,10 +94,10 @@ const generateThumbnail = (file, maxWidth = 800) => {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // 軽いJPEG形式（画質80%）にして返す
+                // 次世代フォーマット WebP に高効率圧縮
                 canvas.toBlob((blob) => {
                     resolve(blob);
-                }, 'image/jpeg', 0.8);
+                }, 'image/webp', quality);
             };
             img.src = e.target.result;
         };
@@ -310,7 +311,7 @@ export default function App() {
         } catch (err) { }
     };
 
-    // --- 写真アップロード処理（大幅改修） ---
+    // --- 写真アップロード処理（ブラウザでの100%WebP自動圧縮） ---
     const handlePhotoUpload = async (e) => {
         e.preventDefault();
         if (!uploadTitle.trim()) return alert("タイトルを入力してください。");
@@ -340,29 +341,41 @@ export default function App() {
         }
 
         try {
-            setUploadProgressMsg('1/3: 軽いサムネイルを自動生成中...');
-            // ここでブラウザ側で画像を縮小し、通信量を抑える「サムネイル」を作ります
-            const thumbnailBlob = await generateThumbnail(selectedFile);
+            // ファイルの拡張子を強制的に .webp に書き換えて保存
+            const baseFileName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
+            const webpFileName = `${baseFileName}.webp`;
 
-            setUploadProgressMsg('2/3: クラウドへ安全にアップロード中...');
+            // ① サムネイル用の超軽量WebPを生成 (最大幅800px, 圧縮率75)
+            setUploadProgressMsg('1/3: 一覧表示用の軽量WebP画像を生成中...');
+            const thumbnailBlob = await compressToWebP(selectedFile, 800, 0.75);
+
+            // ② 拡大表示用の美麗高精細WebPを生成 (最大幅2000px, 圧縮率85)
+            setUploadProgressMsg('2/3: 拡大表示用の高精細WebP画像を生成中...');
+            const originalWebpBlob = await compressToWebP(selectedFile, 2000, 0.85);
+
+            setUploadProgressMsg('3/3: クラウドのWebP保存庫へ安全に転送中...');
             
-            // ① サムネイル画像のアップロード
-            const thumbRef = ref(storage, `artifacts/${appId}/photos/thumb_${newId}_${selectedFile.name}`);
-            await uploadBytes(thumbRef, thumbnailBlob);
-            const thumbDownloadUrl = await getDownloadURL(thumbRef);
+            // Storageへの保存パス設定（拡張子はすべて.webpに統一）
+            const thumbRef = ref(storage, `artifacts/${appId}/photos/thumb_${newId}_${webpFileName}`);
+            const origRef = ref(storage, `artifacts/${appId}/photos/orig_${newId}_${webpFileName}`);
 
-            setUploadProgressMsg('3/3: 高画質元画像をアップロード中...');
+            // ストレージに並列でアップロード
+            await Promise.all([
+                uploadBytes(thumbRef, thumbnailBlob),
+                uploadBytes(origRef, originalWebpBlob)
+            ]);
 
-            // ② オリジナル（高画質）画像のアップロード
-            const origRef = ref(storage, `artifacts/${appId}/photos/orig_${newId}_${selectedFile.name}`);
-            await uploadBytes(origRef, selectedFile);
-            const origDownloadUrl = await getDownloadURL(origRef);
+            // それぞれのダウンロードURLを取得
+            const [thumbDownloadUrl, origDownloadUrl] = await Promise.all([
+                getDownloadURL(thumbRef),
+                getDownloadURL(origRef)
+            ]);
 
-            // ③ データベースへ登録
+            // データベースへメタデータ（WebPへのパス）を登録
             const photoData = {
                 id: newId,
-                url: thumbDownloadUrl,       // 一覧表示用（軽い！）
-                fullUrl: origDownloadUrl,    // 拡大表示用（重い・綺麗！）
+                url: thumbDownloadUrl,       // WebPサムネイル画像（一覧でロードされるので通信量が激減！）
+                fullUrl: origDownloadUrl,    // WebPオリジナル高画質画像
                 title: uploadTitle,
                 category: uploadCategory,
                 createdAt: timestamp,
@@ -382,10 +395,10 @@ export default function App() {
             if (fileInput) fileInput.value = '';
 
             setIsUploading(false);
-            alert("写真をクラウドに公開しました！");
+            alert("写真を完全にWebP化してクラウドに公開しました！");
         } catch (err) {
             console.error("アップロードエラー:", err);
-            alert("アップロードに失敗しました。");
+            alert("アップロードに失敗しました。ファイルタイプなどを確認してください。");
             setIsUploading(false);
         }
     };
@@ -404,7 +417,7 @@ export default function App() {
         try {
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id));
             
-            // 元画像とサムネイル画像の両方を削除
+            // 元画像とサムネイル画像（WebP）の両方を削除
             if (photo.storagePath) {
                 await deleteObject(ref(storage, photo.storagePath)).catch(e=>console.log(e));
             }
@@ -416,7 +429,7 @@ export default function App() {
             setPhotos(updated);
             localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(updated));
 
-            alert("クラウドから写真を削除しました。");
+            alert("クラウドからWebP写真データを完全に削除しました。");
         } catch (err) {
             alert("削除に失敗しました。");
         }
@@ -429,7 +442,6 @@ export default function App() {
                 <>
                     {/* Header */}
                     <header className="fixed w-full z-40 bg-black/80 backdrop-blur-md border-b border-gray-800 transition-all duration-300">
-                        {/* 既存のヘッダーコードそのまま */}
                         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
                             <a href="#" className="block hover:opacity-80 transition">
                                 <img src="images/logo.png" alt="Dark Side Luck Logo" className="h-8 md:h-10 w-auto object-contain" />
@@ -513,7 +525,6 @@ export default function App() {
                                         className="group relative overflow-hidden rounded-sm cursor-pointer bg-gray-900 aspect-[3/4] md:aspect-[4/3]"
                                         onClick={() => setLightboxIndex(index)}
                                     >
-                                        {/* 通信削減：一覧には loading="lazy" を付与し、かつ軽いサムネイル(url)を表示！ */}
                                         <img 
                                             src={photo.url} 
                                             alt={photo.title} 
@@ -533,7 +544,7 @@ export default function App() {
                         </div>
                     </section>
 
-                    {/* Concept, About, Contact は変更なしのためそのまま出力 */}
+                    {/* Concept Section */}
                     <section id="concept" className="relative py-32 px-6 bg-black border-t border-b border-gray-900 overflow-hidden">
                         <div className="absolute inset-0 z-0">
                             <img src="images/taiga.jpg" alt="Concept" loading="lazy" className="w-full h-full object-cover blur-[4px] opacity-30 scale-105" />
@@ -572,6 +583,7 @@ export default function App() {
                         </div>
                     </section>
 
+                    {/* About Section */}
                     <section id="about" className="relative py-24 overflow-hidden">
                         <div className="absolute inset-0 z-0 bg-gray-900">
                             <img src="images/serabi.jpg" alt="About" loading="lazy" className="w-full h-full object-cover opacity-20 mix-blend-luminosity" />
@@ -615,6 +627,7 @@ export default function App() {
                         </div>
                     </section>
 
+                    {/* Contact Section */}
                     <section id="contact" className="relative py-32 border-b border-gray-900 overflow-hidden">
                         <div className="absolute inset-0 z-0">
                             <img src="images/519.jpg" alt="Contact" loading="lazy" className="w-full h-full object-cover opacity-30 mix-blend-luminosity scale-105" />
@@ -642,6 +655,7 @@ export default function App() {
                         </div>
                     </section>
 
+                    {/* Footer */}
                     <footer className="bg-black py-10 mt-auto border-t border-gray-900 relative z-10">
                         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-gray-600 text-xs tracking-widest brand-font gap-4">
                             <p>&copy; {new Date().getFullYear()} MiLio, LLC All rights reserved.</p>
@@ -668,7 +682,6 @@ export default function App() {
                                 <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth="1" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                             </button>
                             <div className="max-w-6xl w-full flex flex-col items-center justify-center">
-                                {/* 通信削減：拡大時だけ、超高画質の fullUrl を読み込みます！ */}
                                 <img 
                                     src={displayedPhotos[lightboxIndex].fullUrl} 
                                     alt={displayedPhotos[lightboxIndex].title} 
