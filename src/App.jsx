@@ -194,7 +194,7 @@ export default function App() {
                     {/* Hero Section */}
                     <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 z-0 bg-black overflow-hidden">
-                            <img src="images/yu.png" alt="Hero Background" className={`w-full h-full object-cover z-0 relative ${heroLoaded ? 'burn-in-loaded' : 'burn-in-init'}`} />
+                            <img src="images/yu.webp" alt="Hero Background" className={`w-full h-full object-cover z-0 relative ${heroLoaded ? 'burn-in-loaded' : 'burn-in-init'}`} />
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10"></div>
                             <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent z-10"></div>
                         </div>
