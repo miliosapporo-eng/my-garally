@@ -25,9 +25,8 @@ import {
     deleteObject 
 } from 'firebase/storage';
 
-// --- 初期写真データ（WebP対応：すべての拡張子を.webpに変更） ---
+// --- 初期写真データ（80とCALIFORNIAを削除した10枚構成） ---
 const DEFAULT_PHOTOS = [
-    { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
     { id: "2", url: "images/entry/mtfuji.webp", fullUrl: "images/entry/mtfuji.webp", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
     { id: "3", url: "images/entry/haku.webp", fullUrl: "images/entry/haku.webp", title: "HAKU", category: "nature", createdAt: 1716223202000 },
     { id: "4", url: "images/entry/yamaguchi.webp", fullUrl: "images/entry/yamaguchi.webp", title: "YAMAGUCHI", category: "journey", createdAt: 1716223203000 },
@@ -36,7 +35,6 @@ const DEFAULT_PHOTOS = [
     { id: "7", url: "images/entry/tottori.webp", fullUrl: "images/entry/tottori.webp", title: "TOTTORI", category: "journey", createdAt: 1716223206000 },
     { id: "8", url: "images/entry/hyogo.webp", fullUrl: "images/entry/hyogo.webp", title: "HYOGO", category: "journey", createdAt: 1716223207000 },
     { id: "9", url: "images/entry/niigata.webp", fullUrl: "images/entry/niigata.webp", title: "NIIGATA", category: "journey", createdAt: 1716223208000 },
-    { id: "10", url: "images/entry/california.webp", fullUrl: "images/entry/california.webp", title: "CALIFORNIA", category: "journey", createdAt: 1716223209000 },
     { id: "11", url: "images/entry/yamagiwa.webp", fullUrl: "images/entry/yamagiwa.webp", title: "million dollar baby", category: "snap", createdAt: 1716223210000 },
     { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
@@ -245,17 +243,15 @@ export default function App() {
         return () => unsubscribeAuth();
     }, []);
 
-    // --- データ取得 ＆ 🌟 【一撃解決】自動キャッシュクレンジング & 拡張子補正 🌟 ---
+    // --- データ取得 ---
     useEffect(() => {
         if (isSimulationMode) return;
         
-        // 【自己修復 A】ブラウザに残っている古いキャッシュを読み込みつつ、拡張子を自動で.webpに矯正
         const cachedPhotos = localStorage.getItem('dsl_cached_firestore_photos');
         if (cachedPhotos) {
             try { 
                 const parsed = JSON.parse(cachedPhotos);
                 const sanitized = parsed.map(p => {
-                    // もしキャッシュ内のローカルパス画像が古い拡張子のままなら強制的に.webpにする
                     if (p.url && p.url.startsWith('images/entry/') && !p.url.endsWith('.webp')) {
                         const baseUrl = p.url.substring(0, p.url.lastIndexOf('.'));
                         return { ...p, url: `${baseUrl}.webp`, fullUrl: `${baseUrl}.webp` };
@@ -284,7 +280,6 @@ export default function App() {
                         let url = data.url;
                         let fullUrl = data.fullUrl;
                         
-                        // 【自己修復 B】Firestoreに残っている古いJPG/PNGのローカル画像パスを、自動でWebPに置換
                         if (url && url.startsWith('images/entry/') && !url.endsWith('.webp')) {
                             url = `${url.substring(0, url.lastIndexOf('.'))}.webp`;
                         }
@@ -373,7 +368,7 @@ export default function App() {
         } catch (err) { }
     };
 
-    // --- 写真アップロード処理（ブラウザでの100%WebP自動圧縮） ---
+    // --- 写真アップロード処理 ---
     const handlePhotoUpload = async (e) => {
         e.preventDefault();
         if (!uploadTitle.trim()) return alert("タイトルを入力してください。");
@@ -406,11 +401,9 @@ export default function App() {
             const baseFileName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
             const webpFileName = `${baseFileName}.webp`;
 
-            // ① サムネイル用の超軽量WebPを生成 (最大幅800px, 圧縮率75)
             setUploadProgressMsg('1/3: 一覧表示用の軽量WebP画像を生成中...');
             const thumbnailBlob = await compressToWebP(selectedFile, 800, 0.75);
 
-            // ② 拡大表示用の美麗高精細WebPを生成 (最大幅2000px, 圧縮率85)
             setUploadProgressMsg('2/3: 拡大表示用の高精細WebP画像を生成中...');
             const originalWebpBlob = await compressToWebP(selectedFile, 2000, 0.85);
 
@@ -419,23 +412,20 @@ export default function App() {
             const thumbRef = ref(storage, `artifacts/${appId}/photos/thumb_${newId}_${webpFileName}`);
             const origRef = ref(storage, `artifacts/${appId}/photos/orig_${newId}_${webpFileName}`);
 
-            // ストレージに並列でアップロード
             await Promise.all([
                 uploadBytes(thumbRef, thumbnailBlob),
                 uploadBytes(origRef, originalWebpBlob)
             ]);
 
-            // それぞれのダウンロードURLを取得
             const [thumbDownloadUrl, origDownloadUrl] = await Promise.all([
                 getDownloadURL(thumbRef),
                 getDownloadURL(origRef)
             ]);
 
-            // データベースへメタデータ（WebPへのパス）を登録
             const photoData = {
                 id: newId,
-                url: thumbDownloadUrl,       // WebPサムネイル画像（一覧でロードされるので通信量が激減！）
-                fullUrl: origDownloadUrl,    // WebPオリジナル高画質画像
+                url: thumbDownloadUrl,
+                fullUrl: origDownloadUrl,
                 title: uploadTitle,
                 category: uploadCategory,
                 createdAt: timestamp,
@@ -477,7 +467,6 @@ export default function App() {
         try {
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id));
             
-            // 元画像とサムネイル画像（WebP）の両方を削除
             if (photo.storagePath) {
                 await deleteObject(ref(storage, photo.storagePath)).catch(e=>console.log(e));
             }
@@ -498,7 +487,6 @@ export default function App() {
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
             
-            {/* 【自己診断バナー】エラーが発生している時に画面最上部にデバッグ情報を自動描画 */}
             {diagnosticError && (
                 <div className="fixed inset-x-0 top-0 z-[9999] bg-red-950 border-b-4 border-red-500 text-red-100 p-6 font-mono text-sm overflow-auto max-h-[50vh]">
                     <div className="flex items-center gap-2 mb-2">
@@ -600,7 +588,6 @@ export default function App() {
                                         className="group relative overflow-hidden rounded-sm cursor-pointer bg-gray-900 aspect-[3/4] md:aspect-[4/3]"
                                         onClick={() => setLightboxIndex(index)}
                                     >
-                                        {/* 🌟 【自己修復 C】画像がリンク切れで？マークになった場合、自動的に.webpパスを試行するスマートフォールバック 🌟 */}
                                         <img 
                                             src={photo.url} 
                                             alt={photo.title} 
@@ -608,12 +595,10 @@ export default function App() {
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                             onError={(e) => {
                                                 const currentSrc = e.target.src;
-                                                // もし.pngなどでエラーが起きていて、かつローカル画像を参照している場合、.webpに自動差し替え
                                                 if (!currentSrc.endsWith('.webp') && currentSrc.includes('/images/entry/')) {
                                                     const basePath = currentSrc.substring(0, currentSrc.lastIndexOf('.'));
                                                     e.target.src = `${basePath}.webp`;
                                                 } else {
-                                                    // それでもダメな場合の代替プレースホルダー
                                                     e.target.src = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80";
                                                 }
                                             }}
@@ -640,7 +625,7 @@ export default function App() {
                         <div className="relative z-10 container mx-auto max-w-3xl">
                             <FadeInSection>
                                 <h2 className="text-3xl md:text-5xl font-bold mb-16 brand-font tracking-[0.2em] text-center text-white leading-tight">
-                                    What is <br className="md:hidden" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
+                                    What's <br className="md:hidden" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-500 to-gray-200">Dark Side Luck</span> ?
                                 </h2>
                             </FadeInSection>
                             <div className="space-y-10 text-gray-300 text-[15px] md:text-base leading-[2.2] font-light">
