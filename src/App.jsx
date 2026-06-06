@@ -1,32 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-// Firebase SDK のインポート
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-    getAuth, 
-    signInAnonymously, 
-    signInWithCustomToken,
-    signInWithEmailAndPassword, 
-    onAuthStateChanged,
-    signOut 
-} from 'firebase/auth';
-import { 
-    getFirestore, 
-    collection, 
-    doc, 
-    setDoc, 
-    getDocs, 
-    deleteDoc 
-} from 'firebase/firestore';
-import { 
-    getStorage, 
-    ref, 
-    uploadBytes, 
-    getDownloadURL, 
-    deleteObject 
-} from 'firebase/storage';
 
-// --- 初期写真データ（80とCALIFORNIAを削除した10枚構成） ---
+// --- 初期写真データ（元の12枚に戻す） ---
 const DEFAULT_PHOTOS = [
+    { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
     { id: "2", url: "images/entry/mtfuji.webp", fullUrl: "images/entry/mtfuji.webp", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
     { id: "3", url: "images/entry/haku.webp", fullUrl: "images/entry/haku.webp", title: "HAKU", category: "nature", createdAt: 1716223202000 },
     { id: "4", url: "images/entry/yamaguchi.webp", fullUrl: "images/entry/yamaguchi.webp", title: "YAMAGUCHI", category: "journey", createdAt: 1716223203000 },
@@ -35,73 +11,10 @@ const DEFAULT_PHOTOS = [
     { id: "7", url: "images/entry/tottori.webp", fullUrl: "images/entry/tottori.webp", title: "TOTTORI", category: "journey", createdAt: 1716223206000 },
     { id: "8", url: "images/entry/hyogo.webp", fullUrl: "images/entry/hyogo.webp", title: "HYOGO", category: "journey", createdAt: 1716223207000 },
     { id: "9", url: "images/entry/niigata.webp", fullUrl: "images/entry/niigata.webp", title: "NIIGATA", category: "journey", createdAt: 1716223208000 },
+    { id: "10", url: "images/entry/california.webp", fullUrl: "images/entry/california.webp", title: "CALIFORNIA", category: "journey", createdAt: 1716223209000 },
     { id: "11", url: "images/entry/yamagiwa.webp", fullUrl: "images/entry/yamagiwa.webp", title: "million dollar baby", category: "snap", createdAt: 1716223210000 },
     { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
-
-// --- Firebase設定 ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
-    authDomain: "dark-side-luck.firebaseapp.com",
-    projectId: "dark-side-luck",
-    storageBucket: "dark-side-luck.firebasestorage.app",
-    messagingSenderId: "43203104616",
-    appId: "1:43203104616:web:cf3f08e99b9c8964ead0dd",
-    measurementId: "G-FMGKCPQE9T"
-};
-
-const appId = "dark-side-luck";
-let firebaseApp = null;
-let auth = null;
-let db = null;
-let storage = null;
-let isSimulationMode = true;
-
-try {
-    if (firebaseConfig && firebaseConfig.apiKey) {
-        firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-        auth = getAuth(firebaseApp);
-        db = getFirestore(firebaseApp);
-        storage = getStorage(firebaseApp);
-        isSimulationMode = false;
-        console.log("Firebase 100%接続完了: 本番稼働モード");
-    }
-} catch (error) {
-    console.warn("Firebase の直接初期化に失敗しました。シミュレーションモードに移行します。", error);
-}
-
-// --- 通信量削減！ブラウザ側で写真を次世代フォーマットWebPに自動リサイズ・圧縮する関数 ---
-const compressToWebP = (file, maxWidth, quality = 0.8) => {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                // 最大幅に合わせて縮小
-                if (width > maxWidth) {
-                    height = Math.round((height * maxWidth) / width);
-                    width = maxWidth;
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                // 次世代フォーマット WebP に高効率圧縮
-                canvas.toBlob((blob) => {
-                    resolve(blob);
-                }, 'image/webp', quality);
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    });
-};
 
 // --- スクロールアニメーション用コンポーネント ---
 const FadeInSection = ({ children, delay = 0, className = "" }) => {
@@ -137,23 +50,12 @@ const FadeInSection = ({ children, delay = 0, className = "" }) => {
 };
 
 export default function App() {
-    const [currentView, setCurrentView] = useState('portfolio');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState(null);
     const [currentFilter, setCurrentFilter] = useState('all');
     const [heroLoaded, setHeroLoaded] = useState(false);
     
     const [photos, setPhotos] = useState(DEFAULT_PHOTOS);
-    const [authUser, setAuthUser] = useState(null);
-    const [adminEmail, setAdminEmail] = useState('');
-    const [adminPassword, setAdminPassword] = useState('');
-    const [loginError, setLoginError] = useState('');
-    
-    const [uploadTitle, setUploadTitle] = useState('');
-    const [uploadCategory, setUploadCategory] = useState('landscape');
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgressMsg, setUploadProgressMsg] = useState('');
 
     // --- ブラウザ上でのJavaScriptエラー検知＆画面描画システム ---
     const [diagnosticError, setDiagnosticError] = useState(null);
@@ -209,104 +111,6 @@ export default function App() {
         };
     }, []);
 
-    // --- 認証 ---
-    useEffect(() => {
-        if (isSimulationMode) {
-            const cached = localStorage.getItem('dsl_cached_photos');
-            if (cached) setPhotos(JSON.parse(cached));
-            return;
-        }
-
-        const initAuthAndSync = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("サインインに失敗しました:", err);
-            }
-        };
-
-        initAuthAndSync();
-
-        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setAuthUser(user);
-                if (!user.isAnonymous) setCurrentView('admin_dashboard');
-            } else {
-                setAuthUser(null);
-            }
-        });
-
-        return () => unsubscribeAuth();
-    }, []);
-
-    // --- データ取得 ---
-    useEffect(() => {
-        if (isSimulationMode) return;
-        
-        const cachedPhotos = localStorage.getItem('dsl_cached_firestore_photos');
-        if (cachedPhotos) {
-            try { 
-                const parsed = JSON.parse(cachedPhotos);
-                const sanitized = parsed.map(p => {
-                    if (p.url && p.url.startsWith('images/entry/') && !p.url.endsWith('.webp')) {
-                        const baseUrl = p.url.substring(0, p.url.lastIndexOf('.'));
-                        return { ...p, url: `${baseUrl}.webp`, fullUrl: `${baseUrl}.webp` };
-                    }
-                    return p;
-                });
-                setPhotos(sanitized); 
-            } catch (e) { 
-                localStorage.removeItem('dsl_cached_firestore_photos');
-            }
-        }
-
-        if (!authUser) return;
-
-        const fetchPhotosOnce = async () => {
-            try {
-                const photosCollection = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-                const snapshot = await getDocs(photosCollection);
-                
-                if (snapshot.empty) {
-                    setPhotos(DEFAULT_PHOTOS);
-                } else {
-                    const loadedPhotos = [];
-                    snapshot.forEach((doc) => {
-                        const data = doc.data();
-                        let url = data.url;
-                        let fullUrl = data.fullUrl;
-                        
-                        if (url && url.startsWith('images/entry/') && !url.endsWith('.webp')) {
-                            url = `${url.substring(0, url.lastIndexOf('.'))}.webp`;
-                        }
-                        if (fullUrl && fullUrl.startsWith('images/entry/') && !fullUrl.endsWith('.webp')) {
-                            fullUrl = `${fullUrl.substring(0, fullUrl.lastIndexOf('.'))}.webp`;
-                        }
-
-                        loadedPhotos.push({ 
-                            id: doc.id, 
-                            ...data,
-                            url,
-                            fullUrl
-                        });
-                    });
-                    loadedPhotos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-                    
-                    setPhotos(loadedPhotos);
-                    localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(loadedPhotos));
-                }
-            } catch (error) {
-                if (!cachedPhotos) setPhotos(DEFAULT_PHOTOS);
-            }
-        };
-
-        fetchPhotosOnce();
-    }, [authUser]);
-
     const displayedPhotos = currentFilter === 'all' ? photos : photos.filter(p => p.category === currentFilter);
 
     // --- ライトボックスのキーボード操作 ---
@@ -332,158 +136,6 @@ export default function App() {
         img.onerror = () => setTimeout(() => setHeroLoaded(true), 100);
     }, []);
 
-    // --- ログイン/ログアウト ---
-    const handleAdminLogin = async (e) => {
-        e.preventDefault();
-        setLoginError('');
-
-        if (isSimulationMode) {
-            if (adminEmail === 'admin@dsl.com' && adminPassword === 'password') {
-                setAuthUser({ email: 'admin@dsl.com', isAnonymous: false });
-                setCurrentView('admin_dashboard');
-            } else {
-                setLoginError('シミュレーション用ログイン情報: admin@dsl.com / password を入力してください。');
-            }
-            return;
-        }
-
-        try {
-            await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-            setCurrentView('admin_dashboard');
-        } catch (err) {
-            setLoginError('ログインに失敗しました。');
-        }
-    };
-
-    const handleAdminLogout = async () => {
-        if (isSimulationMode) {
-            setAuthUser(null);
-            setCurrentView('portfolio');
-            return;
-        }
-        try {
-            await signOut(auth);
-            await signInAnonymously(auth);
-            setCurrentView('portfolio');
-        } catch (err) { }
-    };
-
-    // --- 写真アップロード処理 ---
-    const handlePhotoUpload = async (e) => {
-        e.preventDefault();
-        if (!uploadTitle.trim()) return alert("タイトルを入力してください。");
-        if (!selectedFile && !isSimulationMode) return alert("写真ファイルを選択してください。");
-
-        setIsUploading(true);
-        const newId = Date.now().toString();
-        const timestamp = Date.now();
-
-        if (isSimulationMode) {
-            const handleSimulate = (fileUrl) => {
-                const newPhoto = { id: newId, url: fileUrl, fullUrl: fileUrl, title: uploadTitle, category: uploadCategory, createdAt: timestamp };
-                const updatedPhotos = [...photos, newPhoto];
-                setPhotos(updatedPhotos);
-                localStorage.setItem('dsl_cached_photos', JSON.stringify(updatedPhotos));
-                setUploadTitle(''); setSelectedFile(null); setIsUploading(false);
-                alert("【シミュレーション】アップロードしました！");
-            };
-            if (selectedFile) {
-                const reader = new FileReader();
-                reader.onloadend = () => handleSimulate(reader.result);
-                reader.readAsDataURL(selectedFile);
-            } else {
-                handleSimulate("https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80");
-            }
-            return;
-        }
-
-        try {
-            const baseFileName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
-            const webpFileName = `${baseFileName}.webp`;
-
-            setUploadProgressMsg('1/3: 一覧表示用の軽量WebP画像を生成中...');
-            const thumbnailBlob = await compressToWebP(selectedFile, 800, 0.75);
-
-            setUploadProgressMsg('2/3: 拡大表示用の高精細WebP画像を生成中...');
-            const originalWebpBlob = await compressToWebP(selectedFile, 2000, 0.85);
-
-            setUploadProgressMsg('3/3: クラウドのWebP保存庫へ安全に転送中...');
-            
-            const thumbRef = ref(storage, `artifacts/${appId}/photos/thumb_${newId}_${webpFileName}`);
-            const origRef = ref(storage, `artifacts/${appId}/photos/orig_${newId}_${webpFileName}`);
-
-            await Promise.all([
-                uploadBytes(thumbRef, thumbnailBlob),
-                uploadBytes(origRef, originalWebpBlob)
-            ]);
-
-            const [thumbDownloadUrl, origDownloadUrl] = await Promise.all([
-                getDownloadURL(thumbRef),
-                getDownloadURL(origRef)
-            ]);
-
-            const photoData = {
-                id: newId,
-                url: thumbDownloadUrl,
-                fullUrl: origDownloadUrl,
-                title: uploadTitle,
-                category: uploadCategory,
-                createdAt: timestamp,
-                storagePath: origRef.fullPath,
-                thumbStoragePath: thumbRef.fullPath
-            };
-
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', newId), photoData);
-
-            const updated = [...photos, photoData];
-            setPhotos(updated);
-            localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(updated));
-
-            setUploadTitle('');
-            setSelectedFile(null);
-            const fileInput = document.getElementById('photo-file-input');
-            if (fileInput) fileInput.value = '';
-
-            setIsUploading(false);
-            alert("写真を完全にWebP化してクラウドに公開しました！");
-        } catch (err) {
-            console.error("アップロードエラー:", err);
-            alert("アップロードに失敗しました。ファイルタイプなどを確認してください。");
-            setIsUploading(false);
-        }
-    };
-
-    // --- 写真削除処理 ---
-    const handleDeletePhoto = async (photo) => {
-        if (!confirm(`写真「${photo.title}」を削除してもよろしいですか？`)) return;
-
-        if (isSimulationMode) {
-            const updatedPhotos = photos.filter(p => p.id !== photo.id);
-            setPhotos(updatedPhotos);
-            localStorage.setItem('dsl_cached_photos', JSON.stringify(updatedPhotos));
-            return;
-        }
-
-        try {
-            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id));
-            
-            if (photo.storagePath) {
-                await deleteObject(ref(storage, photo.storagePath)).catch(e=>console.log(e));
-            }
-            if (photo.thumbStoragePath) {
-                await deleteObject(ref(storage, photo.thumbStoragePath)).catch(e=>console.log(e));
-            }
-            
-            const updated = photos.filter(p => p.id !== photo.id);
-            setPhotos(updated);
-            localStorage.setItem('dsl_cached_firestore_photos', JSON.stringify(updated));
-
-            alert("クラウドからWebP写真データを完全に削除しました。");
-        } catch (err) {
-            alert("削除に失敗しました。");
-        }
-    };
-
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
             
@@ -501,12 +153,10 @@ export default function App() {
                 </div>
             )}
 
-            {currentView === 'portfolio' && (
-                <>
-                    {/* Header */}
-                    <header className="fixed w-full z-40 bg-black/80 backdrop-blur-md border-b border-gray-800 transition-all duration-300">
-                        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                            <a href="#" className="block hover:opacity-80 transition">
+            {/* Header */}
+            <header className="fixed w-full z-40 bg-black/80 backdrop-blur-md border-b border-gray-800 transition-all duration-300">
+                <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+                    <a href="#" className="block hover:opacity-80 transition">
                                 <img src="images/logo.png" alt="Dark Side Luck Logo" className="h-8 md:h-10 w-auto object-contain" />
                             </a>
                             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-300 hover:text-white focus:outline-none">
@@ -731,10 +381,6 @@ export default function App() {
                     <footer className="bg-black py-10 mt-auto border-t border-gray-900 relative z-10">
                         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-gray-600 text-xs tracking-widest brand-font gap-4">
                             <p>&copy; {new Date().getFullYear()} MiLio, LLC All rights reserved.</p>
-                            <button onClick={() => setCurrentView('admin_login')} className="text-gray-700 hover:text-gray-400 transition-colors flex items-center gap-2">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                Admin Login
-                            </button>
                         </div>
                     </footer>
 
@@ -774,138 +420,6 @@ export default function App() {
                             </div>
                         </div>
                     )}
-                </>
-            )}
-
-            {/* Admin Login */}
-            {currentView === 'admin_login' && (
-                <div className="min-h-screen flex items-center justify-center px-4 bg-black">
-                    <div className="max-w-md w-full bg-gray-900/60 border border-gray-800 p-8 rounded-sm backdrop-blur-md">
-                        <div className="text-center mb-8">
-                            <img src="images/logo.png" alt="Logo" className="h-8 mx-auto mb-6 object-contain" />
-                            <h2 className="text-xl font-bold tracking-widest text-white brand-font mb-4">ADMIN LOGIN</h2>
-                            <div className="mb-6">
-                                {isSimulationMode ? (
-                                    <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-3 py-1 rounded-full font-medium tracking-wide">⚠️ Simulation Mode (Local Test)</span>
-                                ) : (
-                                    <span className="text-xs bg-green-500/10 text-green-500 border border-green-500/20 px-3 py-1 rounded-full font-medium tracking-wide">🟢 Cloud Production Connected</span>
-                                )}
-                            </div>
-                        </div>
-                        <form onSubmit={handleAdminLogin} className="space-y-6">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 tracking-wider mb-2">EMAIL ADDRESS</label>
-                                <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder={isSimulationMode ? "admin@dsl.com" : "email@example.com"} className="w-full bg-black border border-gray-800 px-4 py-3 rounded-sm text-sm text-white focus:outline-none focus:border-white transition-colors" required />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 tracking-wider mb-2">PASSWORD</label>
-                                <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder={isSimulationMode ? "password" : "••••••••"} className="w-full bg-black border border-gray-800 px-4 py-3 rounded-sm text-sm text-white focus:outline-none focus:border-white transition-colors" required />
-                            </div>
-                            {loginError && <p className="text-red-500 text-xs leading-relaxed text-center">{loginError}</p>}
-                            <div className="flex gap-4 pt-2">
-                                <button type="button" onClick={() => setCurrentView('portfolio')} className="flex-1 py-3 border border-gray-800 text-gray-400 hover:text-white hover:border-gray-600 transition text-xs tracking-widest font-medium rounded-sm">CANCEL</button>
-                                <button type="submit" className="flex-1 py-3 bg-white text-black hover:bg-gray-200 transition text-xs tracking-widest font-bold rounded-sm">LOGIN</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Admin Dashboard */}
-            {currentView === 'admin_dashboard' && (
-                <div className="min-h-screen bg-black text-gray-100 flex flex-col">
-                    <header className="bg-gray-950 border-b border-gray-900 px-6 py-4 flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <img src="images/logo.png" alt="Logo" className="h-8 object-contain" />
-                            {isSimulationMode ? (
-                                <span className="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2.5 py-0.5 rounded-full font-medium tracking-wide">Simulation Mode</span>
-                            ) : (
-                                <span className="text-xs bg-green-500/10 text-green-500 border border-green-500/20 px-2.5 py-0.5 rounded-full font-medium tracking-wide">Cloud Production Connected</span>
-                            )}
-                        </div>
-                        <button onClick={handleAdminLogout} className="text-xs border border-gray-800 hover:border-gray-500 px-4 py-2 rounded-sm text-gray-400 hover:text-white transition flex items-center gap-2 font-medium tracking-wider">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                            LOGOUT
-                        </button>
-                    </header>
-
-                    <div className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-1">
-                            <div className="bg-gray-900/40 border border-gray-800 p-6 rounded-sm backdrop-blur-md sticky top-6">
-                                <h3 className="text-lg font-bold tracking-widest mb-6 text-white brand-font border-b border-gray-800 pb-3">ADD NEW PHOTO</h3>
-                                <form onSubmit={handlePhotoUpload} className="space-y-6">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 tracking-wider mb-2">PHOTO FILE</label>
-                                        <div className="relative border-2 border-dashed border-gray-800 hover:border-gray-600 rounded-sm p-4 text-center cursor-pointer transition-colors bg-black/40">
-                                            <input id="photo-file-input" type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required={!isSimulationMode} />
-                                            <div className="space-y-2">
-                                                <svg className="w-8 h-8 mx-auto text-gray-600" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 .375 0 11-.75 0 .375 .375 0 01.75 0z" /></svg>
-                                                <p className="text-xs text-gray-300 font-medium">{selectedFile ? selectedFile.name : "ファイルを選択またはドラッグ＆ドロップ"}</p>
-                                                <p className="text-[10px] text-gray-500">JPG, PNG, WEBP</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 tracking-wider mb-2">TITLE</label>
-                                        <input type="text" value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)} placeholder="例: YAMAGUCHI, HAKU" className="w-full bg-black border border-gray-800 px-4 py-3 rounded-sm text-sm text-white focus:outline-none focus:border-white transition-colors" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 tracking-wider mb-2">CATEGORY</label>
-                                        <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)} className="w-full bg-black border border-gray-800 px-4 py-3 rounded-sm text-sm text-white focus:outline-none focus:border-white transition-colors cursor-pointer">
-                                            <option value="landscape">LANDSCAPE</option>
-                                            <option value="portrait">PORTRAIT</option>
-                                            <option value="urban">URBAN</option>
-                                            <option value="snap">SNAP</option>
-                                            <option value="animal">ANIMAL</option>
-                                            <option value="nature">NATURE</option>
-                                            <option value="journey">JOURNEY</option>
-                                        </select>
-                                    </div>
-                                    {isUploading ? (
-                                        <div className="text-center py-4">
-                                            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-t-transparent border-white mb-2"></div>
-                                            <p className="text-xs text-gray-400 font-medium">{uploadProgressMsg}</p>
-                                        </div>
-                                    ) : (
-                                        <button type="submit" className="w-full py-3.5 bg-white text-black hover:bg-gray-200 transition text-xs tracking-widest font-bold rounded-sm flex items-center justify-center gap-2">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                            UPLOAD & PUBLISH
-                                        </button>
-                                    )}
-                                </form>
-                            </div>
-                        </div>
-
-                        <div className="lg:col-span-2">
-                            <div className="bg-gray-900/20 border border-gray-800 p-6 rounded-sm backdrop-blur-md">
-                                <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-3">
-                                    <h3 className="text-lg font-bold tracking-widest text-white brand-font">CURRENT PHOTOS ({photos.length})</h3>
-                                    <span className="text-[10px] text-gray-500 font-medium tracking-wider">LATEST FIRST</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                    {photos.slice().reverse().map((photo) => (
-                                        <div key={photo.id} className="bg-black border border-gray-900 rounded-sm overflow-hidden flex flex-col group">
-                                            <div className="aspect-[4/3] w-full bg-gray-950 overflow-hidden relative">
-                                                <img src={photo.url} alt={photo.title} loading="lazy" className="w-full h-full object-cover" />
-                                                <span className="absolute top-3 left-3 bg-black/80 border border-gray-800 text-[9px] font-bold text-yellow-500 px-2.5 py-1 rounded-full tracking-wider uppercase">{photo.category}</span>
-                                            </div>
-                                            <div className="p-4 flex justify-between items-center gap-4">
-                                                <div className="truncate">
-                                                    <h4 className="text-sm font-bold text-white truncate brand-font">{photo.title}</h4>
-                                                    <p className="text-[10px] text-gray-500 mt-0.5">ID: {photo.id}</p>
-                                                </div>
-                                                <button onClick={() => handleDeletePhoto(photo)} className="p-2 border border-gray-900 hover:border-red-900 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-sm transition-all duration-300" title="この写真を削除">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
