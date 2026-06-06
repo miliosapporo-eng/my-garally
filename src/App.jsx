@@ -308,7 +308,7 @@ export default function App() {
                     {/* About Section */}
                     <section id="about" className="relative py-24 overflow-hidden">
                         <div className="absolute inset-0 z-0 bg-gray-900">
-                            <img src="images/serabi.jpg" alt="About" loading="lazy" className="w-full h-full object-cover opacity-20 mix-blend-luminosity" />
+                            <img src="images/519.jpg" alt="About" loading="lazy" className="w-full h-full object-cover opacity-20 mix-blend-luminosity" />
                             <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent md:to-black/40"></div>
                         </div>
                         <div className="relative z-10 container mx-auto px-6">
@@ -352,7 +352,7 @@ export default function App() {
                     {/* Contact Section */}
                     <section id="contact" className="relative py-32 border-b border-gray-900 overflow-hidden">
                         <div className="absolute inset-0 z-0">
-                            <img src="images/519.jpg" alt="Contact" loading="lazy" className="w-full h-full object-cover opacity-30 mix-blend-luminosity scale-105" />
+                            <img src="images/moon.jpg" alt="Contact" loading="lazy" className="w-full h-full object-cover opacity-30 mix-blend-luminosity scale-105" />
                             <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
                         </div>
                         <div className="relative z-10 container mx-auto px-6">
