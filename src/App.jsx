@@ -77,7 +77,7 @@ const ProjectSlideshow = () => {
 
                 return (
                     <div key={url} className={`absolute inset-0 ${slideClass}`}>
-                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-cover object-center opacity-80" />
+                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-contain object-center opacity-80" />
                     </div>
                 );
             })}
@@ -423,8 +423,8 @@ export default function App() {
             <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex items-center justify-center group">
                 
                 <FadeInSection className="w-full max-w-5xl px-4 md:px-0">
-                    {/* スライドショーを囲むコンテナ（大胆な余白を作るために枠を制限） */}
-                    <div className="relative w-full aspect-[4/3] md:aspect-[16/9] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
+                    {/* スライドショーを囲むコンテナ（元画像をすべて表示するために高さを確保） */}
+                    <div className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
                         
                         {/* スライドショー背景（枠内で再生される） */}
                         <ProjectSlideshow />
