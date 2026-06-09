@@ -1,5 +1,102 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// ============================================================================
+// Firebase の初期化と Storage 連携
+// ============================================================================
+import { initializeApp } from "firebase/app";
+import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage";
+
+// 先ほどご提示いただいた Firebase 設定を直接ここに埋め込みます
+const firebaseConfig = {
+    apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
+    authDomain: "dark-side-luck.firebaseapp.com",
+    projectId: "dark-side-luck",
+    storageBucket: "dark-side-luck.firebasestorage.app",
+    messagingSenderId: "43203104616",
+    appId: "1:43203104616:web:cf3f08e99b9c8964ead0dd",
+    measurementId: "G-FMGKCPQE9T"
+};
+
+// アプリの初期化
+const app = initializeApp(firebaseConfig);
+// Storage の初期化
+const storage = getStorage(app);
+
+// ============================================================================
+// プロジェクトセクション用スライドショーコンポーネント
+// ============================================================================
+const ProjectSlideshow = () => {
+    const [images, setImages] = useState([]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+        const fetchImages = async () => {
+            try {
+                // Firebase Storageから画像のリストを取得
+                const listRef = ref(storage, 'projects/portrait_exhibition'); 
+                const res = await listAll(listRef);
+                
+                // 全ての画像のURLを取得
+                let urls = await Promise.all(res.items.map((itemRef) => getDownloadURL(itemRef)));
+
+                // 画像が取得できなかった場合のフォールバック（画面が真っ暗になるのを防ぐため）
+                if (urls.length === 0) {
+                    urls = [
+                        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80",
+                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80"
+                    ];
+                }
+
+                // 読み込んだ写真群をランダムにシャッフル
+                urls = urls.sort(() => Math.random() - 0.5);
+                setImages(urls);
+            } catch (error) {
+                console.error("Storage fetch error:", error);
+                // エラー時のフォールバック画像
+                setImages([
+                    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80"
+                ]);
+            }
+        };
+        fetchImages();
+    }, []);
+
+    // 6秒ごとにスライドを切り替え
+    useEffect(() => {
+        if (images.length === 0) return;
+        const intervalId = setInterval(() => {
+            setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
+        }, 6000); 
+        return () => clearInterval(intervalId);
+    }, [images]);
+
+    if (images.length === 0) return null;
+
+    return (
+        <div className="absolute inset-0 z-0 bg-black overflow-hidden pointer-events-none">
+            {images.map((url, index) => {
+                const isActive = index === currentIndex;
+                const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
+
+                // エフェクトの論理構築
+                // 暗闇の奥からゆっくりフェードインし、手前へフェードアウトしていく
+                let slideClass = "opacity-0 scale-90 z-0 transition-all duration-[3000ms] ease-in"; // 待機状態（奥）
+                if (isActive) {
+                    slideClass = "opacity-40 scale-105 z-10 transition-all duration-[8000ms] ease-out"; // 表示状態（徐々に手前へ）
+                } else if (isPrevious) {
+                    slideClass = "opacity-0 scale-110 z-5 transition-all duration-[4000ms] ease-out"; // フェードアウト状態（さらに手前へ行きながら消える）
+                }
+
+                return (
+                    <div key={url} className={`absolute inset-0 ${slideClass}`}>
+                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-cover object-center" />
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
 // --- 初期写真データ（元の12枚） ---
 const DEFAULT_PHOTOS = [
     { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
@@ -179,8 +276,9 @@ export default function App() {
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
                         )}
                     </button>
+                    {/* ナビゲーションにPROJECTを追加 */}
                     <nav className="hidden md:flex space-x-8 items-center tracking-wider">
-                        {['GALLERY', 'CONCEPT', 'ABOUT', 'CONTACT'].map((item) => (
+                        {['GALLERY', 'CONCEPT', 'PROJECT', 'ABOUT', 'CONTACT'].map((item) => (
                             <a key={item} href={`#${item.toLowerCase()}`} className="text-xs font-medium hover:text-gray-400 transition">{item}</a>
                         ))}
                         <a href="https://dsl.theshop.jp/" target="_blank" rel="noreferrer" className="text-xs font-medium bg-white text-gray-900 px-5 py-2 rounded-sm hover:bg-gray-200 transition flex items-center gap-2">
@@ -192,7 +290,7 @@ export default function App() {
                 {isMenuOpen && (
                     <div className="md:hidden bg-black/95 backdrop-blur-md border-t border-gray-800 absolute w-full left-0">
                         <div className="flex flex-col px-6 py-6 space-y-6">
-                            {['GALLERY', 'CONCEPT', 'ABOUT', 'CONTACT'].map((item) => (
+                            {['GALLERY', 'CONCEPT', 'PROJECT', 'ABOUT', 'CONTACT'].map((item) => (
                                 <a key={item} href={`#${item.toLowerCase()}`} onClick={() => setIsMenuOpen(false)} className="text-sm tracking-wider font-medium hover:text-gray-400 transition">{item}</a>
                             ))}
                             <a href="https://dsl.theshop.jp/" target="_blank" rel="noreferrer" className="text-sm tracking-wider font-medium text-yellow-500 hover:text-yellow-400 transition flex items-center gap-2">
@@ -338,6 +436,34 @@ export default function App() {
                             </div>
                         </FadeInSection>
                     </div>
+                </div>
+            </section>
+
+            {/* Project Section (New) */}
+            <section id="project" className="relative border-b border-gray-900 overflow-hidden bg-black min-h-[85vh] flex items-center justify-center">
+                
+                {/* スライドショーの背景コンポーネント */}
+                <ProjectSlideshow />
+                
+                {/* テキストを読みやすくするためのグラデーションオーバーレイ */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black z-10 pointer-events-none"></div>
+                <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
+                
+                {/* テキストコンテンツ */}
+                <div className="relative z-20 container mx-auto px-6 text-center max-w-4xl py-32">
+                    <FadeInSection>
+                        <p className="text-yellow-600 tracking-[0.4em] text-xs font-bold mb-4 uppercase">Special Exhibition</p>
+                        <h2 className="text-4xl md:text-6xl font-bold mb-2 brand-font tracking-widest text-white leading-tight">
+                            portrait exhibition
+                        </h2>
+                        <p className="text-xl md:text-2xl text-gray-300 brand-font italic font-light mb-12">by 430</p>
+                        <div className="w-12 h-[1px] bg-gray-600 mx-auto mb-10"></div>
+                        <p className="text-gray-200 font-light leading-[2.4] tracking-widest text-[13px] md:text-base drop-shadow-lg">
+                            暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。<br className="hidden md:block" />
+                            光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取ったポートレート群。<br className="hidden md:block" />
+                            視線の先に宿る物語を、どうか感じ取ってください。
+                        </p>
+                    </FadeInSection>
                 </div>
             </section>
 
