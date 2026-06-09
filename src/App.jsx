@@ -251,25 +251,29 @@ const ProjectSlideshow = () => {
                 const isActive = index === currentIndex;
                 const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
 
-                let imgWrapperClass = "absolute inset-0 w-full h-full flex items-center justify-center transition-all ";
+                // 基本のレイアウト設定 (モバイルは高さ55%で上寄せ、PCは幅55%で左寄せ。p-6 md:p-12の余白のおかげで絶対に見切れません)
+                let imgWrapperClass = "absolute top-0 left-0 w-full h-[55%] md:h-full md:w-[55%] flex items-center justify-center p-6 md:p-12 transition-all pointer-events-none ";
                 let textWrapperClass = "absolute z-20 flex flex-col transition-all ";
 
                 if (isActive) {
                     if (phase === 'fadeIn') {
-                        imgWrapperClass += "opacity-100 duration-[3000ms] ease-out translate-x-0 translate-y-0 scale-100";
+                        // モバイル：中央にぴったり持ってくるため translate-y-[41%] スライド
+                        // PC：中央にぴったり持ってくるため md:translate-x-[41%] スライド
+                        imgWrapperClass += "opacity-100 duration-[3000ms] ease-out translate-y-[41%] md:translate-y-0 md:translate-x-[41%] scale-95";
                         textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
                     } else if (phase === 'moveLeft') {
-                        imgWrapperClass += "opacity-100 duration-[2000ms] ease-in-out -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-100"; 
+                        // 左（スマホは上）へ移動。パディングが入っているので端に写真が絶対にくっつかない安全な位置へスライド
+                        imgWrapperClass += "opacity-100 duration-[2000ms] ease-in-out translate-y-0 md:translate-x-0 scale-90"; 
                         textWrapperClass += "opacity-100 duration-[2000ms] ease-out translate-y-0 md:translate-x-0";
                     } else if (phase === 'reading') {
-                        imgWrapperClass += "opacity-100 duration-[5000ms] ease-linear -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-100"; 
+                        imgWrapperClass += "opacity-100 duration-[5000ms] ease-linear translate-y-0 md:translate-x-0 scale-90"; 
                         textWrapperClass += "opacity-100 duration-[5000ms] ease-linear translate-y-0 md:translate-x-0";
                     }
                 } else if (isPrevious) {
-                    imgWrapperClass += "opacity-0 duration-[3000ms] ease-in -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-[1.02]";
+                    imgWrapperClass += "opacity-0 duration-[3000ms] ease-in translate-y-0 md:translate-x-0 scale-[0.95]";
                     textWrapperClass += "opacity-0 duration-[2000ms] ease-in translate-y-4 md:translate-y-0 md:translate-x-4";
                 } else {
-                    imgWrapperClass += "opacity-0 duration-[0ms] translate-x-0 translate-y-0 scale-95";
+                    imgWrapperClass += "opacity-0 duration-[0ms] translate-y-[41%] md:translate-y-0 md:translate-x-[41%] scale-90";
                     textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
                 }
 
@@ -278,7 +282,7 @@ const ProjectSlideshow = () => {
                 return (
                     <div key={imgObj.url} className="absolute inset-0 pointer-events-none">
                         <div className={imgWrapperClass}>
-                            <img src={imgObj.url} alt={imgObj.title} className="w-full h-full object-contain object-center opacity-90 drop-shadow-2xl" />
+                            <img src={imgObj.url} alt={imgObj.title} className="w-full h-full object-contain opacity-90 drop-shadow-2xl" />
                         </div>
                         <div className={textWrapperClass}>
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent md:bg-none md:bg-gradient-to-l md:from-black/90 md:via-black/60 md:to-transparent -z-10 rounded-sm opacity-90"></div>
@@ -635,7 +639,7 @@ export default function App() {
                             <div className="border-l-[1px] border-gray-600 pl-6 mt-20">
                                 <h4 className="text-sm md:text-base font-bold text-gray-400 mb-6 tracking-widest brand-font">余談</h4>
                                 <p className="mb-6">撮影ジャンルとしては、自分で言うとすると「（目撃した）記録」になると思います。自ら光源を作り出したり再現したりすることは無く、その日その時間その場で何に対峙してそれをどのように切り取ったのか、あるいは何を考えていたのか。を大切にしています。</p>
-                                <p>ネイチャーも人物のスナップも乗り物も建物も私のテーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。</p>
+                                <p>ネイチャーも人物のスナップも乗り物も建物も私テーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。</p>
                             </div>
                         </FadeInSection>
                     </div>
@@ -723,7 +727,7 @@ export default function App() {
                             <div className="flex flex-col items-center gap-6">
                                 <a href="mailto:DSL@design4qol.com" className="group inline-flex items-center gap-4 px-10 py-4 border border-gray-600 text-white rounded-sm hover:bg-white hover:text-black transition-all duration-500 text-sm tracking-[0.2em] brand-font overflow-hidden relative">
                                     <span className="absolute inset-0 w-full h-full -mt-1 rounded-sm opacity-30 bg-gradient-to-b from-transparent via-transparent to-black group-hover:opacity-0 transition-opacity"></span>
-                                    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                     <span className="relative z-10">CONTACT ME</span>
                                 </a>
                                 <a href="https://instagram.com/dark_side_luck" target="_blank" rel="noreferrer" className="group p-2 text-gray-500 hover:text-white transition duration-300 flex items-center justify-center gap-3 text-xs tracking-widest mt-4">
