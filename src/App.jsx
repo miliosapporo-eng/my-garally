@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // ============================================================================
-// Firebase の初期化と Storage 連携
+// Firebase の初期化と 連携モジュールのインポート
 // ============================================================================
 import { initializeApp } from "firebase/app";
-import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, listAll, getDownloadURL, getMetadata, updateMetadata } from "firebase/storage";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
+// Firebaseの設定（firebase.js を作らず直接統合）
 const firebaseConfig = {
     apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
     authDomain: "dark-side-luck.firebaseapp.com",
@@ -18,6 +20,168 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
+const auth = getAuth(app);
+
+// ============================================================================
+// セキュアな隠し管理画面：キャプションエディタコンポーネント
+// ============================================================================
+const AdminPanel = ({ onClose }) => {
+    const [user, setUser] = useState(null);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loginError, setLoginError] = useState('');
+    
+    const [adminImages, setAdminImages] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [savingId, setSavingId] = useState(null);
+
+    // 認証状態の監視
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                fetchForAdmin();
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // ログイン処理
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoginError('');
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (err) {
+            setLoginError('ログインに失敗しました。メールアドレスかパスワードが間違っています。');
+        }
+    };
+
+    // ログアウト処理
+    const handleLogout = async () => {
+        await signOut(auth);
+        onClose();
+    };
+
+    // データフェッチ
+    const fetchForAdmin = async () => {
+        setLoading(true);
+        try {
+            const listRef = ref(storage, 'projects/portrait_exhibition');
+            const res = await listAll(listRef);
+            const items = await Promise.all(res.items.map(async (itemRef) => {
+                const url = await getDownloadURL(itemRef);
+                const metadata = await getMetadata(itemRef);
+                return {
+                    ref: itemRef,
+                    url,
+                    name: itemRef.name,
+                    caption: metadata.customMetadata?.caption || ""
+                };
+            }));
+            setAdminImages(items);
+        } catch (error) {
+            console.error("Admin fetch error:", error);
+            alert("データの読み込みに失敗しました。");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCaptionChange = (index, newText) => {
+        const updated = [...adminImages];
+        updated[index].caption = newText;
+        setAdminImages(updated);
+    };
+
+    const handleSave = async (index) => {
+        const item = adminImages[index];
+        setSavingId(index);
+        try {
+            const newMetadata = {
+                customMetadata: {
+                    'caption': item.caption
+                }
+            };
+            await updateMetadata(item.ref, newMetadata);
+            alert(`「${item.name}」のキャプションを保存しました！`);
+        } catch (error) {
+            console.error("Save error:", error);
+            alert("保存に失敗しました。セキュリティルールを確認してください。");
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/95 overflow-y-auto p-6 md:p-12 font-sans flex justify-center items-start">
+            <div className="w-full max-w-4xl bg-gray-900 border border-gray-700 rounded-lg p-6 mt-10 shadow-2xl">
+                <div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
+                    <h2 className="text-2xl font-bold text-white tracking-widest flex items-center gap-3">
+                        <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        Secure Admin Panel
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white px-4 py-2 border border-gray-600 rounded transition">閉じる</button>
+                </div>
+                
+                {/* 未ログイン時はログインフォームを表示 */}
+                {!user ? (
+                    <div className="max-w-md mx-auto py-12">
+                        <p className="text-gray-400 mb-6 text-sm text-center">キャプションを編集するには、管理者としてログインしてください。</p>
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1 tracking-widest">EMAIL</label>
+                                <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-600 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1 tracking-widest">PASSWORD</label>
+                                <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} required className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-yellow-600 focus:outline-none" />
+                            </div>
+                            {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
+                            <button type="submit" className="w-full bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-3 rounded transition mt-4 tracking-widest">LOGIN</button>
+                        </form>
+                    </div>
+                ) : (
+                    /* ログイン済みの場合はエディタを表示 */
+                    <div>
+                        <div className="flex justify-between items-center mb-6">
+                            <p className="text-sm text-yellow-500">ログイン中: {user.email}</p>
+                            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-white underline">ログアウト</button>
+                        </div>
+                        
+                        {loading ? (
+                            <p className="text-gray-400 text-center py-12">画像を読み込んでいます...</p>
+                        ) : (
+                            <div className="space-y-8">
+                                {adminImages.map((item, idx) => (
+                                    <div key={item.name} className="flex flex-col md:flex-row gap-6 bg-black p-4 rounded border border-gray-800">
+                                        <img src={item.url} alt={item.name} className="w-full md:w-48 h-48 object-cover rounded" />
+                                        <div className="flex-1 flex flex-col">
+                                            <p className="text-gray-400 text-xs mb-2 font-mono">{item.name}</p>
+                                            <textarea 
+                                                className="w-full flex-1 bg-gray-900 text-white border border-gray-700 rounded p-3 text-sm focus:border-yellow-600 focus:outline-none mb-3 resize-none"
+                                                placeholder="詩的なキャプションを入力してください..."
+                                                value={item.caption}
+                                                onChange={(e) => handleCaptionChange(idx, e.target.value)}
+                                            />
+                                            <button 
+                                                onClick={() => handleSave(idx)}
+                                                disabled={savingId === idx}
+                                                className="self-end bg-yellow-700 hover:bg-yellow-600 text-white font-bold py-2 px-8 rounded transition disabled:opacity-50 tracking-widest"
+                                            >
+                                                {savingId === idx ? '保存中...' : 'SAVE'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // ============================================================================
 // プロジェクトセクション用スライドショーコンポーネント
@@ -25,27 +189,39 @@ const storage = getStorage(app);
 const ProjectSlideshow = () => {
     const [images, setImages] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [phase, setPhase] = useState('fadeIn'); 
 
     useEffect(() => {
         const fetchImages = async () => {
             try {
                 const listRef = ref(storage, 'projects/portrait_exhibition'); 
                 const res = await listAll(listRef);
-                let urls = await Promise.all(res.items.map((itemRef) => getDownloadURL(itemRef)));
+                
+                let fetchedImages = await Promise.all(res.items.map(async (itemRef, idx) => {
+                    const url = await getDownloadURL(itemRef);
+                    const metadata = await getMetadata(itemRef);
+                    const fileNameBase = itemRef.name.split('.')[0];
+                    let title = fileNameBase.replace(/_/g, ' ');
+                    if (title.length < 2) title = `Portrait 0${idx + 1}`;
+                    
+                    const description = metadata.customMetadata?.caption || "光と影が交錯する瞬間に現れる、隠された真実。視線の先に宿る静かな物語を感じ取ってほしい。";
+                    
+                    return { url, title, description };
+                }));
 
-                if (urls.length === 0) {
-                    urls = [
-                        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80",
-                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80"
+                if (fetchedImages.length === 0) {
+                    fetchedImages = [
+                        { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80", title: "Silent Echo", description: "暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。" },
+                        { url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80", title: "Fading Light", description: "光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取った一枚。" }
                     ];
                 }
 
-                urls = urls.sort(() => Math.random() - 0.5);
-                setImages(urls);
+                fetchedImages = fetchedImages.sort(() => Math.random() - 0.5);
+                setImages(fetchedImages);
             } catch (error) {
                 console.error("Storage fetch error:", error);
                 setImages([
-                    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80"
+                    { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80", title: "Silent Echo", description: "暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。" }
                 ]);
             }
         };
@@ -54,30 +230,65 @@ const ProjectSlideshow = () => {
 
     useEffect(() => {
         if (images.length === 0) return;
-        const intervalId = setInterval(() => {
-            setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
-        }, 6000); 
-        return () => clearInterval(intervalId);
-    }, [images]);
+        setPhase('fadeIn'); 
+
+        const timerMove = setTimeout(() => { setPhase('moveLeft'); }, 3000); 
+        const timerReading = setTimeout(() => { setPhase('reading'); }, 5000); 
+        const timerNext = setTimeout(() => { setCurrentIndex(prev => (prev + 1) % images.length); }, 10000); 
+
+        return () => {
+            clearTimeout(timerMove);
+            clearTimeout(timerReading);
+            clearTimeout(timerNext);
+        };
+    }, [currentIndex, images.length]);
 
     if (images.length === 0) return null;
 
     return (
         <div className="absolute inset-0 z-0 bg-black overflow-hidden pointer-events-none">
-            {images.map((url, index) => {
+            {images.map((imgObj, index) => {
                 const isActive = index === currentIndex;
                 const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
 
-                let slideClass = "opacity-0 scale-90 z-0 transition-all duration-[3000ms] ease-in"; 
+                let imgWrapperClass = "absolute inset-0 w-full h-full flex items-center justify-center transition-all ";
+                let textWrapperClass = "absolute z-20 flex flex-col transition-all ";
+
                 if (isActive) {
-                    slideClass = "opacity-100 scale-105 z-10 transition-all duration-[8000ms] ease-out"; 
+                    if (phase === 'fadeIn') {
+                        imgWrapperClass += "opacity-100 duration-[3000ms] ease-out translate-x-0 translate-y-0 scale-100";
+                        textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
+                    } else if (phase === 'moveLeft') {
+                        imgWrapperClass += "opacity-100 duration-[2000ms] ease-in-out -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-100"; 
+                        textWrapperClass += "opacity-100 duration-[2000ms] ease-out translate-y-0 md:translate-x-0";
+                    } else if (phase === 'reading') {
+                        imgWrapperClass += "opacity-100 duration-[5000ms] ease-linear -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-100"; 
+                        textWrapperClass += "opacity-100 duration-[5000ms] ease-linear translate-y-0 md:translate-x-0";
+                    }
                 } else if (isPrevious) {
-                    slideClass = "opacity-0 scale-110 z-5 transition-all duration-[4000ms] ease-out"; 
+                    imgWrapperClass += "opacity-0 duration-[3000ms] ease-in -translate-y-[15%] md:translate-y-0 md:-translate-x-1/4 scale-[1.02]";
+                    textWrapperClass += "opacity-0 duration-[2000ms] ease-in translate-y-4 md:translate-y-0 md:translate-x-4";
+                } else {
+                    imgWrapperClass += "opacity-0 duration-[0ms] translate-x-0 translate-y-0 scale-95";
+                    textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
                 }
 
+                textWrapperClass += " inset-x-6 bottom-6 top-auto md:inset-y-0 md:right-0 md:left-auto md:w-[45%] md:justify-center md:px-12";
+
                 return (
-                    <div key={url} className={`absolute inset-0 ${slideClass}`}>
-                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-contain object-center opacity-80" />
+                    <div key={imgObj.url} className="absolute inset-0 pointer-events-none">
+                        <div className={imgWrapperClass}>
+                            <img src={imgObj.url} alt={imgObj.title} className="w-full h-full object-contain object-center opacity-90 drop-shadow-2xl" />
+                        </div>
+                        <div className={textWrapperClass}>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent md:bg-none md:bg-gradient-to-l md:from-black/90 md:via-black/60 md:to-transparent -z-10 rounded-sm opacity-90"></div>
+                            <p className="text-yellow-600/80 tracking-[0.3em] text-[10px] md:text-xs font-bold mb-2 md:mb-4 uppercase drop-shadow-md">Exhibition Piece</p>
+                            <h3 className="text-2xl md:text-4xl font-bold text-white brand-font tracking-widest mb-3 md:mb-6 drop-shadow-lg capitalize">{imgObj.title}</h3>
+                            <div className="w-8 h-[1px] bg-gray-500 mb-4 md:mb-6"></div>
+                            <p className="text-gray-300 font-light text-[11px] md:text-sm leading-[2.2] tracking-widest drop-shadow-md whitespace-pre-wrap">
+                                {imgObj.description}
+                            </p>
+                        </div>
                     </div>
                 );
             })}
@@ -85,7 +296,7 @@ const ProjectSlideshow = () => {
     );
 };
 
-// --- 初期写真データ（元の12枚） ---
+// --- 初期写真データ ---
 const DEFAULT_PHOTOS = [
     { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
     { id: "2", url: "images/entry/mtfuji.webp", fullUrl: "images/entry/mtfuji.webp", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
@@ -139,15 +350,16 @@ export default function App() {
     const [currentFilter, setCurrentFilter] = useState('all');
     const [heroLoaded, setHeroLoaded] = useState(false);
     const [photos, setPhotos] = useState(DEFAULT_PHOTOS);
-
     const [isExpanded, setIsExpanded] = useState(false);
     const INITIAL_VISIBLE_COUNT = 6; 
 
-    // --- プロジェクトセクションのテキスト表示/非表示用ステート ---
-    const [showProjectInfo, setShowProjectInfo] = useState(true);
+    // ★ 隠し管理画面のステート
+    const [showAdminPanel, setShowAdminPanel] = useState(false);
+    const [clickCount, setClickCount] = useState(0);
 
     const [diagnosticError, setDiagnosticError] = useState(null);
 
+    // エラーハンドリング
     useEffect(() => {
         const handleError = (event) => {
             setDiagnosticError({
@@ -172,6 +384,7 @@ export default function App() {
         };
     }, []);
 
+    // スタイルとフォントの注入
     useEffect(() => {
         const link = document.createElement('link');
         link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap';
@@ -217,8 +430,8 @@ export default function App() {
     }, [lightboxIndex, visiblePhotos.length]);
 
     useEffect(() => {
-        document.body.style.overflow = lightboxIndex !== null ? 'hidden' : '';
-    }, [lightboxIndex]);
+        document.body.style.overflow = lightboxIndex !== null || showAdminPanel ? 'hidden' : '';
+    }, [lightboxIndex, showAdminPanel]);
 
     useEffect(() => {
         const img = new Image();
@@ -227,9 +440,21 @@ export default function App() {
         img.onerror = () => setTimeout(() => setHeroLoaded(true), 100);
     }, []);
 
+    // ★ フッタークリック検知ロジック
+    const handleFooterClick = () => {
+        setClickCount(prev => prev + 1);
+        if (clickCount + 1 >= 5) {
+            setShowAdminPanel(true);
+            setClickCount(0);
+        }
+    };
+
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
             
+            {/* ★ 認証付き隠し管理画面のレンダー */}
+            {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+
             {diagnosticError && (
                 <div className="fixed inset-x-0 top-0 z-[9999] bg-red-950 border-b-4 border-red-500 text-red-100 p-6 font-mono text-sm overflow-auto max-h-[50vh]">
                     <div className="flex items-center gap-2 mb-2">
@@ -404,7 +629,7 @@ export default function App() {
                         </FadeInSection>
                         <FadeInSection delay={200}>
                             <h3 className="text-lg md:text-xl font-medium text-white mt-16 mb-6 tracking-wide">光輝くもの。尊いもの。それは愛なのかもしれない。</h3>
-                            <p>僕が撮りたいと思うのは、輝かしい存在が目の前にあった時なのだということが分かりました。そして、その光輝くものは影を生む。また、同じ一辺倒の明るさの中にいては、それらは輝きを放てないでしょう。少しほの暗い方がいいのかもしれない。あるいは、完全な闇の中の方がいいのかもしれない。つまりは、暗闇の中に差し込む一筋の光。それこそが僕の撮っているものなのだ。と, 腑に落ちたのでした。僕から見た貴方はそれだけ尊いものなのです。</p>
+                            <p>僕が撮りたいと思うのは、輝かしい存在が目の前にあった時なのだということが分かりました。そして、その光輝くものは影を生む。また、同じ一辺倒の明るさの中にいては、それらは輝きを放てないでしょう。少しほの暗い方がいいのかもしれない。あるいは、完全な闇の中の方がいいのかもしれない。つまりは, 暗闇の中に差し込む一筋の光。それこそが僕の撮っているものなのだ。と, 腑に落ちたのでした。僕から見た貴方はそれだけ尊いものなのです。</p>
                         </FadeInSection>
                         <FadeInSection delay={200}>
                             <div className="border-l-[1px] border-gray-600 pl-6 mt-20">
@@ -418,61 +643,25 @@ export default function App() {
             </section>
 
             {/* ============================================================================
-                Project Section (Updated: Bold Dark Margins)
+                Project Section (Dynamic Caption Slideshow & Static Header)
             ============================================================================ */}
-            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex items-center justify-center group">
+            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex flex-col items-center justify-center group">
                 
-                <FadeInSection className="w-full max-w-5xl px-4 md:px-0">
-                    {/* スライドショーを囲むコンテナ（元画像をすべて表示するために高さを確保） */}
-                    <div className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
-                        
-                        {/* スライドショー背景（枠内で再生される） */}
-                        <ProjectSlideshow />
-                        
-                        {/* 文字を見やすくするためのグラデーション（HIDE INFOで消える） */}
-                        <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 pointer-events-none transition-opacity duration-1000 ${showProjectInfo ? 'opacity-100' : 'opacity-0'}`}></div>
-                        
-                        {/* 左下のテキストコンテンツ（枠内に配置、HIDE INFOで消え下に沈む） */}
-                        <div className={`absolute bottom-0 left-0 w-full z-20 px-6 md:px-12 pb-8 md:pb-12 pt-32 transition-all duration-1000 transform ${showProjectInfo ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}>
-                            <div className="max-w-2xl text-left border-l border-yellow-600/40 pl-6 md:pl-8">
-                                <p className="text-yellow-600 tracking-[0.3em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Exhibition</p>
-                                <h2 className="text-2xl md:text-4xl font-bold mb-1 brand-font tracking-widest text-white leading-tight drop-shadow-lg">
-                                    portrait exhibition
-                                </h2>
-                                <p className="text-sm md:text-lg text-gray-300 brand-font italic font-light mb-4 md:mb-6 drop-shadow-md">by 430</p>
-                                <p className="text-gray-300 font-light leading-[2.2] tracking-widest text-[11px] md:text-xs drop-shadow-md">
-                                    暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。<br className="hidden md:block" />
-                                    光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取ったポートレート群。<br className="hidden md:block" />
-                                    視線の先に宿る物語を、どうか感じ取ってください。
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                {/* 常に上に固定して表示する特別なタイトル情報 */}
+                <FadeInSection className="w-full max-w-5xl px-6 md:px-0 text-center mb-12">
+                    <p className="text-yellow-600 tracking-[0.4em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Portrait Exhibition</p>
+                    <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight">
+                        Proof of my existence
+                    </h2>
+                    <p className="text-sm md:text-base text-gray-400 brand-font italic font-light">by 430</p>
                 </FadeInSection>
 
-                {/* 右下のトグルボタン（SHOW / HIDE） - 外側の黒い余白部分に配置 */}
-                <div className="absolute bottom-10 right-6 md:right-12 z-30">
-                    <button 
-                        onClick={() => setShowProjectInfo(!showProjectInfo)}
-                        className={`flex items-center gap-2 text-xs tracking-widest font-medium transition duration-500 px-5 py-2.5 rounded-sm border backdrop-blur-md ${
-                            showProjectInfo 
-                                ? "text-gray-400 bg-black/40 border-gray-800 hover:text-white hover:bg-black/80 hover:border-gray-500" 
-                                : "text-white bg-black/60 border-gray-500 hover:bg-black/90 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-                        }`}
-                    >
-                        {showProjectInfo ? (
-                            <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                                <span>HIDE INFO</span>
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                <span>SHOW INFO</span>
-                            </>
-                        )}
-                    </button>
-                </div>
+                {/* スライドショーを囲む枠 */}
+                <FadeInSection className="w-full max-w-5xl px-4 md:px-0">
+                    <div className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
+                        <ProjectSlideshow />
+                    </div>
+                </FadeInSection>
             </section>
 
             {/* About Section */}
@@ -495,7 +684,7 @@ export default function App() {
                             <FadeInSection delay={200}><h2 className="text-3xl font-bold mb-8 brand-font tracking-widest text-white">Behind the Lens</h2></FadeInSection>
                             <FadeInSection delay={300}>
                                 <p className="text-gray-400 leading-loose mb-8 text-[15px] md:text-base font-light">
-                                    初めまして。430 (shimio)です。<br />1983年札幌生まれ。北海道在住。アクティブに動いているかと思いきや、引きこもったりする変な人。主にポートレートスナップを撮っています。共感してもらえる方々に出会えることを楽しみにしております。これはいい！と思える作品を共に創っていけるパートナーを探しています。よろしくお願いします。
+                                    初めまして。430 (shimio)です。<br />1983年札幌生まれ。北海道在住。アクティブに動いているかと思いきや、引きこおったりする変な人。主にポートレートスナップを撮っています。共感してもらえる方々に出会えることを楽しみにしております。これはいい！と思える作品を共に創っていけるパートナーを探しています。よろしくお願いします。
                                 </p>
                                 <div className="text-gray-400 leading-loose mb-10 space-y-4 text-sm font-light">
                                     <div><span className="text-gray-300 font-medium tracking-widest text-xs border-b border-gray-700 pb-1 mb-2 inline-block">興味 • 関心</span><br />VIPな女の人生 ／ 無の境地 ／ 脳に補正された世界とされていない世界 ／ 人体のメカニズム</div>
@@ -550,7 +739,10 @@ export default function App() {
             {/* Footer */}
             <footer className="bg-black py-10 mt-auto border-t border-gray-900 relative z-10">
                 <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-gray-600 text-xs tracking-widest brand-font gap-4">
-                    <p>&copy; {new Date().getFullYear()} MiLio, LLC All rights reserved.</p>
+                    {/* ★ ここを5回クリックで管理画面を開く */}
+                    <p onClick={handleFooterClick} className="cursor-default select-none hover:text-gray-500 transition-colors">
+                        &copy; {new Date().getFullYear()} MiLio, LLC All rights reserved.
+                    </p>
                 </div>
             </footer>
 
