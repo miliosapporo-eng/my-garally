@@ -7,7 +7,7 @@ import { initializeApp } from "firebase/app";
 import { getStorage, ref, listAll, getDownloadURL, getMetadata, updateMetadata } from "firebase/storage";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
-// Firebaseの設定（firebase.js を作らず直接統合）
+// Firebaseの設定
 const firebaseConfig = {
     apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
     authDomain: "dark-side-luck.firebaseapp.com",
@@ -23,7 +23,7 @@ const storage = getStorage(app);
 const auth = getAuth(app);
 
 // ============================================================================
-// セキュアな隠し管理画面：キャプションエディタコンポーネント
+// セキュアな隠し管理画面：キャプションエディタコンポーネント (Exhibition選択対応)
 // ============================================================================
 const AdminPanel = ({ onClose }) => {
     const [user, setUser] = useState(null);
@@ -31,6 +31,8 @@ const AdminPanel = ({ onClose }) => {
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
     
+    const [exhibitions, setExhibitions] = useState([]); // フォルダ一覧
+    const [selectedExh, setSelectedExh] = useState(''); // 選択中のフォルダ名
     const [adminImages, setAdminImages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [savingId, setSavingId] = useState(null);
@@ -40,34 +42,54 @@ const AdminPanel = ({ onClose }) => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
-                fetchForAdmin();
+                fetchExhibitionsList();
             }
         });
         return () => unsubscribe();
     }, []);
 
-    // ログイン処理
+    // フォルダ（Exhibition）一覧の取得
+    const fetchExhibitionsList = async () => {
+        try {
+            const listRef = ref(storage, 'projects');
+            const res = await listAll(listRef);
+            // サブフォルダ（prefixes）を抽出
+            const folders = res.prefixes.map(p => p.name);
+            setExhibitions(folders);
+            if (folders.length > 0) {
+                setSelectedExh(folders[0]);
+            }
+        } catch (error) {
+            console.error("Fetch folder list error:", error);
+        }
+    };
+
+    // 選択されたExhibitionの画像をフェッチ
+    useEffect(() => {
+        if (selectedExh) {
+            fetchForAdmin(selectedExh);
+        }
+    }, [selectedExh]);
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoginError('');
         try {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (err) {
-            setLoginError('ログインに失敗しました。メールアドレスかパスワードが間違っています。');
+            setLoginError('ログインに失敗しました。認証情報を確認してください。');
         }
     };
 
-    // ログアウト処理
     const handleLogout = async () => {
         await signOut(auth);
         onClose();
     };
 
-    // データフェッチ
-    const fetchForAdmin = async () => {
+    const fetchForAdmin = async (folderName) => {
         setLoading(true);
         try {
-            const listRef = ref(storage, 'projects/portrait_exhibition');
+            const listRef = ref(storage, `projects/${folderName}`);
             const res = await listAll(listRef);
             const items = await Promise.all(res.items.map(async (itemRef) => {
                 const url = await getDownloadURL(itemRef);
@@ -124,7 +146,6 @@ const AdminPanel = ({ onClose }) => {
                     <button onClick={onClose} className="text-gray-400 hover:text-white px-4 py-2 border border-gray-600 rounded transition">閉じる</button>
                 </div>
                 
-                {/* 未ログイン時はログインフォームを表示 */}
                 {!user ? (
                     <div className="max-w-md mx-auto py-12">
                         <p className="text-gray-400 mb-6 text-sm text-center">キャプションを編集するには、管理者としてログインしてください。</p>
@@ -142,11 +163,25 @@ const AdminPanel = ({ onClose }) => {
                         </form>
                     </div>
                 ) : (
-                    /* ログイン済みの場合はエディタを表示 */
                     <div>
-                        <div className="flex justify-between items-center mb-6">
-                            <p className="text-sm text-yellow-500">ログイン中: {user.email}</p>
-                            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-white underline">ログアウト</button>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-black/40 p-4 rounded border border-gray-800">
+                            <div>
+                                <p className="text-sm text-yellow-500">ログイン中: {user.email}</p>
+                                <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-white underline mt-1">ログアウト</button>
+                            </div>
+                            {/* Exhibition 選択プルダウン */}
+                            <div className="w-full md:w-auto flex items-center gap-3">
+                                <label className="text-xs text-gray-400 tracking-wider whitespace-nowrap">SELECT EXHIBITION:</label>
+                                <select 
+                                    value={selectedExh} 
+                                    onChange={(e) => setSelectedExh(e.target.value)}
+                                    className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-yellow-600 cursor-pointer"
+                                >
+                                    {exhibitions.map(name => (
+                                        <option key={name} value={name}>{name.replace(/_/g, ' ')}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                         
                         {loading ? (
@@ -184,17 +219,19 @@ const AdminPanel = ({ onClose }) => {
 };
 
 // ============================================================================
-// プロジェクトセクション用スライドショーコンポーネント
+// プロジェクトセクション用スライドショーコンポーネント (ExhibitionID 動的連動)
 // ============================================================================
-const ProjectSlideshow = () => {
+const ProjectSlideshow = ({ exhibitionId }) => {
     const [images, setImages] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [phase, setPhase] = useState('fadeIn'); 
 
+    // exhibitionId が切り替わったら、画像を再フェッチする
     useEffect(() => {
         const fetchImages = async () => {
+            if (!exhibitionId) return;
             try {
-                const listRef = ref(storage, 'projects/portrait_exhibition'); 
+                const listRef = ref(storage, `projects/${exhibitionId}`); 
                 const res = await listAll(listRef);
                 
                 let fetchedImages = await Promise.all(res.items.map(async (itemRef, idx) => {
@@ -209,6 +246,7 @@ const ProjectSlideshow = () => {
                     return { url, title, description };
                 }));
 
+                // 万が一画像が全くない場合のフォールバック
                 if (fetchedImages.length === 0) {
                     fetchedImages = [
                         { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80", title: "Silent Echo", description: "暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。" },
@@ -216,8 +254,10 @@ const ProjectSlideshow = () => {
                     ];
                 }
 
+                // 順番をランダムシャッフル
                 fetchedImages = fetchedImages.sort(() => Math.random() - 0.5);
                 setImages(fetchedImages);
+                setCurrentIndex(0); // スライド位置をリセット
             } catch (error) {
                 console.error("Storage fetch error:", error);
                 setImages([
@@ -226,8 +266,9 @@ const ProjectSlideshow = () => {
             }
         };
         fetchImages();
-    }, []);
+    }, [exhibitionId]);
 
+    // 10秒アニメーションサイクル
     useEffect(() => {
         if (images.length === 0) return;
         setPhase('fadeIn'); 
@@ -241,7 +282,7 @@ const ProjectSlideshow = () => {
             clearTimeout(timerReading);
             clearTimeout(timerNext);
         };
-    }, [currentIndex, images.length]);
+    }, [currentIndex, images.length, exhibitionId]);
 
     if (images.length === 0) return null;
 
@@ -251,18 +292,14 @@ const ProjectSlideshow = () => {
                 const isActive = index === currentIndex;
                 const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
 
-                // 基本のレイアウト設定 (モバイルは高さ55%で上寄せ、PCは幅55%で左寄せ。p-6 md:p-12の余白のおかげで絶対に見切れません)
                 let imgWrapperClass = "absolute top-0 left-0 w-full h-[55%] md:h-full md:w-[55%] flex items-center justify-center p-6 md:p-12 transition-all pointer-events-none ";
                 let textWrapperClass = "absolute z-20 flex flex-col transition-all ";
 
                 if (isActive) {
                     if (phase === 'fadeIn') {
-                        // モバイル：中央にぴったり持ってくるため translate-y-[41%] スライド
-                        // PC：中央にぴったり持ってくるため md:translate-x-[41%] スライド
                         imgWrapperClass += "opacity-100 duration-[3000ms] ease-out translate-y-[41%] md:translate-y-0 md:translate-x-[41%] scale-95";
                         textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
                     } else if (phase === 'moveLeft') {
-                        // 左（スマホは上）へ移動。パディングが入っているので端に写真が絶対にくっつかない安全な位置へスライド
                         imgWrapperClass += "opacity-100 duration-[2000ms] ease-in-out translate-y-0 md:translate-x-0 scale-90"; 
                         textWrapperClass += "opacity-100 duration-[2000ms] ease-out translate-y-0 md:translate-x-0";
                     } else if (phase === 'reading') {
@@ -300,7 +337,7 @@ const ProjectSlideshow = () => {
     );
 };
 
-// --- 初期写真データ ---
+// --- 初期ギャラリー写真データ ---
 const DEFAULT_PHOTOS = [
     { id: "1", url: "images/entry/carp.webp", fullUrl: "images/entry/carp.webp", title: "80", category: "landscape", createdAt: 1716223200000 },
     { id: "2", url: "images/entry/mtfuji.webp", fullUrl: "images/entry/mtfuji.webp", title: "The Camp", category: "landscape", createdAt: 1716223201000 },
@@ -361,6 +398,14 @@ export default function App() {
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [clickCount, setClickCount] = useState(0);
 
+    // ★ 動的Exhibitionステート
+    const [dynamicExhibitions, setDynamicExhibitions] = useState([]); // Storageからフェッチしたフォルダ群
+    const [currentExhIndex, setCurrentExhIndex] = useState(0);       // 現在表示中の企画インデックス
+
+    // 左右スワイプ / ドラッグ用の座標管理
+    const [dragStart, setDragStart] = useState(0);
+    const [dragEnd, setDragEnd] = useState(0);
+
     const [diagnosticError, setDiagnosticError] = useState(null);
 
     // エラーハンドリング
@@ -386,6 +431,35 @@ export default function App() {
             window.removeEventListener('error', handleError);
             window.removeEventListener('unhandledrejection', handleRejection);
         };
+    }, []);
+
+    // 1. Storage直下のフォルダ構成を自動解析して企画一覧を生成
+    useEffect(() => {
+        const fetchExhibitions = async () => {
+            try {
+                const listRef = ref(storage, 'projects');
+                const res = await listAll(listRef);
+                const folders = res.prefixes.map(p => ({
+                    id: p.name,
+                    title: p.name.replace(/_/g, ' ') // アンダーバーをスペースに美しく自動置換
+                }));
+
+                if (folders.length > 0) {
+                    setDynamicExhibitions(folders);
+                } else {
+                    // フォルダーが空の場合のプレビュー用デフォルト
+                    setDynamicExhibitions([
+                        { id: 'portrait_exhibition', title: 'Proof of my existence' }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Dynamic folders fetch error:", error);
+                setDynamicExhibitions([
+                    { id: 'portrait_exhibition', title: 'Proof of my existence' }
+                ]);
+            }
+        };
+        fetchExhibitions();
     }, []);
 
     // スタイルとフォントの注入
@@ -444,7 +518,6 @@ export default function App() {
         img.onerror = () => setTimeout(() => setHeroLoaded(true), 100);
     }, []);
 
-    // ★ フッタークリック検知ロジック
     const handleFooterClick = () => {
         setClickCount(prev => prev + 1);
         if (clickCount + 1 >= 5) {
@@ -452,6 +525,42 @@ export default function App() {
             setClickCount(0);
         }
     };
+
+    // 企画切り替え用の制御関数
+    const handleNextExhibition = () => {
+        if (dynamicExhibitions.length === 0) return;
+        setCurrentExhIndex(prev => (prev + 1) % dynamicExhibitions.length);
+    };
+
+    const handlePrevExhibition = () => {
+        if (dynamicExhibitions.length === 0) return;
+        setCurrentExhIndex(prev => (prev - 1 + dynamicExhibitions.length) % dynamicExhibitions.length);
+    };
+
+    // タッチ＆ドラッグイベント（左右スワイプ）の検知ロジック
+    const handleSwipeStart = (clientX) => {
+        setDragStart(clientX);
+        setDragEnd(clientX);
+    };
+
+    const handleSwipeMove = (clientX) => {
+        setDragEnd(clientX);
+    };
+
+    const handleSwipeEnd = () => {
+        const distance = dragStart - dragEnd;
+        if (distance > 80) {
+            // 左スワイプ -> 次の企画へ
+            handleNextExhibition();
+        } else if (distance < -80) {
+            // 右スワイプ -> 前の企画へ
+            handlePrevExhibition();
+        }
+        setDragStart(0);
+        setDragEnd(0);
+    };
+
+    const activeExhibition = dynamicExhibitions[currentExhIndex] || { id: '', title: '' };
 
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
@@ -639,7 +748,7 @@ export default function App() {
                             <div className="border-l-[1px] border-gray-600 pl-6 mt-20">
                                 <h4 className="text-sm md:text-base font-bold text-gray-400 mb-6 tracking-widest brand-font">余談</h4>
                                 <p className="mb-6">撮影ジャンルとしては、自分で言うとすると「（目撃した）記録」になると思います。自ら光源を作り出したり再現したりすることは無く、その日その時間その場で何に対峙してそれをどのように切り取ったのか、あるいは何を考えていたのか。を大切にしています。</p>
-                                <p>ネイチャーも人物のスナップも乗り物も建物も私テーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たちの代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。</p>
+                                <p>ネイチャーも人物のスナップも乗り物も建物も私テーマの対象物だと思っています。活動内容としましては、様々な理由で行きたい場所に行くことができない、思いを伝えられない。そんな人たち代わりとなるphoto messengerをやっていこうと考えております。いつかそれ自体が私の存在した証明になるように。</p>
                             </div>
                         </FadeInSection>
                     </div>
@@ -647,25 +756,73 @@ export default function App() {
             </section>
 
             {/* ============================================================================
-                Project Section (Dynamic Caption Slideshow & Static Header)
+                Project Section (Dynamic Caption Slideshow & Static Header & Swipable)
             ============================================================================ */}
-            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex flex-col items-center justify-center group">
+            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex flex-col items-center justify-center select-none">
                 
-                {/* 常に上に固定して表示する特別なタイトル情報 */}
-                <FadeInSection className="w-full max-w-5xl px-6 md:px-0 text-center mb-12">
+                {/* 常に上に固定して表示する特別なタイトル情報（Storage内のフォルダ名と完全同期） */}
+                <div className="w-full max-w-5xl px-6 md:px-0 text-center mb-12">
                     <p className="text-yellow-600 tracking-[0.4em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Portrait Exhibition</p>
-                    <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight">
-                        Proof of my existence
+                    <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight capitalize min-h-[1.5em] transition-all duration-500">
+                        {activeExhibition.title || "Loading Exhibition..."}
                     </h2>
                     <p className="text-sm md:text-base text-gray-400 brand-font italic font-light">by 430</p>
-                </FadeInSection>
+                </div>
 
-                {/* スライドショーを囲む枠 */}
-                <FadeInSection className="w-full max-w-5xl px-4 md:px-0">
-                    <div className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
-                        <ProjectSlideshow />
+                {/* スライドショーコンテナ（左右に矢印ボタン、スワイプ操作領域） */}
+                <div className="relative w-full max-w-5xl px-4 md:px-12 flex items-center justify-center">
+                    
+                    {/* 左切り替えボタン */}
+                    {dynamicExhibitions.length > 1 && (
+                        <button 
+                            onClick={handlePrevExhibition} 
+                            className="absolute left-1 md:left-4 z-30 p-2 text-gray-600 hover:text-white transition-colors duration-300 focus:outline-none"
+                            aria-label="Previous exhibition"
+                        >
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                    )}
+
+                    {/* スワイプ・ドラッグ検知機能つきメインステージ */}
+                    <div 
+                        className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950 cursor-grab active:cursor-grabbing"
+                        onTouchStart={(e) => handleSwipeStart(e.touches[0].clientX)}
+                        onTouchMove={(e) => handleSwipeMove(e.touches[0].clientX)}
+                        onTouchEnd={handleSwipeEnd}
+                        onMouseDown={(e) => handleSwipeStart(e.clientX)}
+                        onMouseMove={(e) => dragStart !== 0 && handleSwipeMove(e.clientX)}
+                        onMouseUp={handleSwipeEnd}
+                        onMouseLeave={() => dragStart !== 0 && setDragStart(0)}
+                    >
+                        {/* 選択されているフォルダIDをプロップスとして渡す */}
+                        {activeExhibition.id && (
+                            <ProjectSlideshow exhibitionId={activeExhibition.id} />
+                        )}
+                        
+                        {/* スワイプ可能であることを示す控えめなインジケータードット */}
+                        {dynamicExhibitions.length > 1 && (
+                            <div className="absolute top-6 right-6 z-20 flex gap-2">
+                                {dynamicExhibitions.map((_, idx) => (
+                                    <span 
+                                        key={idx} 
+                                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${idx === currentExhIndex ? 'bg-yellow-600 w-4' : 'bg-gray-600'}`}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
-                </FadeInSection>
+
+                    {/* 右切り替えボタン */}
+                    {dynamicExhibitions.length > 1 && (
+                        <button 
+                            onClick={handleNextExhibition} 
+                            className="absolute right-1 md:right-4 z-30 p-2 text-gray-600 hover:text-white transition-colors duration-300 focus:outline-none"
+                            aria-label="Next exhibition"
+                        >
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    )}
+                </div>
             </section>
 
             {/* About Section */}
