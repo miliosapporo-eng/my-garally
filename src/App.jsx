@@ -6,7 +6,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage";
 
-// 先ほどご提示いただいた Firebase 設定を直接ここに埋め込みます
 const firebaseConfig = {
     apiKey: "AIzaSyBaWABhVZPKHRPwevjv8xzy7lvWjMoWCt8",
     authDomain: "dark-side-luck.firebaseapp.com",
@@ -17,9 +16,7 @@ const firebaseConfig = {
     measurementId: "G-FMGKCPQE9T"
 };
 
-// アプリの初期化
 const app = initializeApp(firebaseConfig);
-// Storage の初期化
 const storage = getStorage(app);
 
 // ============================================================================
@@ -32,14 +29,10 @@ const ProjectSlideshow = () => {
     useEffect(() => {
         const fetchImages = async () => {
             try {
-                // Firebase Storageから画像のリストを取得
                 const listRef = ref(storage, 'projects/portrait_exhibition'); 
                 const res = await listAll(listRef);
-                
-                // 全ての画像のURLを取得
                 let urls = await Promise.all(res.items.map((itemRef) => getDownloadURL(itemRef)));
 
-                // 画像が取得できなかった場合のフォールバック（画面が真っ暗になるのを防ぐため）
                 if (urls.length === 0) {
                     urls = [
                         "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80",
@@ -47,12 +40,10 @@ const ProjectSlideshow = () => {
                     ];
                 }
 
-                // 読み込んだ写真群をランダムにシャッフル
                 urls = urls.sort(() => Math.random() - 0.5);
                 setImages(urls);
             } catch (error) {
                 console.error("Storage fetch error:", error);
-                // エラー時のフォールバック画像
                 setImages([
                     "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80"
                 ]);
@@ -61,7 +52,6 @@ const ProjectSlideshow = () => {
         fetchImages();
     }, []);
 
-    // 6秒ごとにスライドを切り替え
     useEffect(() => {
         if (images.length === 0) return;
         const intervalId = setInterval(() => {
@@ -78,18 +68,16 @@ const ProjectSlideshow = () => {
                 const isActive = index === currentIndex;
                 const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
 
-                // エフェクトの論理構築
-                // 暗闇の奥からゆっくりフェードインし、手前へフェードアウトしていく
-                let slideClass = "opacity-0 scale-90 z-0 transition-all duration-[3000ms] ease-in"; // 待機状態（奥）
+                let slideClass = "opacity-0 scale-90 z-0 transition-all duration-[3000ms] ease-in"; 
                 if (isActive) {
-                    slideClass = "opacity-40 scale-105 z-10 transition-all duration-[8000ms] ease-out"; // 表示状態（徐々に手前へ）
+                    slideClass = "opacity-100 scale-105 z-10 transition-all duration-[8000ms] ease-out"; 
                 } else if (isPrevious) {
-                    slideClass = "opacity-0 scale-110 z-5 transition-all duration-[4000ms] ease-out"; // フェードアウト状態（さらに手前へ行きながら消える）
+                    slideClass = "opacity-0 scale-110 z-5 transition-all duration-[4000ms] ease-out"; 
                 }
 
                 return (
                     <div key={url} className={`absolute inset-0 ${slideClass}`}>
-                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-cover object-center" />
+                         <img src={url} alt="Portrait Exhibition" className="w-full h-full object-cover object-center opacity-80" />
                     </div>
                 );
             })}
@@ -113,7 +101,6 @@ const DEFAULT_PHOTOS = [
     { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 }
 ];
 
-// --- スクロールアニメーション用コンポーネント ---
 const FadeInSection = ({ children, delay = 0, className = "" }) => {
     const [isVisible, setVisible] = useState(false);
     const domRef = useRef();
@@ -153,11 +140,12 @@ export default function App() {
     const [heroLoaded, setHeroLoaded] = useState(false);
     const [photos, setPhotos] = useState(DEFAULT_PHOTOS);
 
-    // --- 「もっと見る」用ステート＆初期表示枚数の設定 ---
     const [isExpanded, setIsExpanded] = useState(false);
-    const INITIAL_VISIBLE_COUNT = 6; // 最初は6枚表示
+    const INITIAL_VISIBLE_COUNT = 6; 
 
-    // --- ブラウザ上でのJavaScriptエラー検知＆画面描画システム ---
+    // --- プロジェクトセクションのテキスト表示/非表示用ステート ---
+    const [showProjectInfo, setShowProjectInfo] = useState(true);
+
     const [diagnosticError, setDiagnosticError] = useState(null);
 
     useEffect(() => {
@@ -184,7 +172,6 @@ export default function App() {
         };
     }, []);
 
-    // --- グローバルスタイルの注入 ---
     useEffect(() => {
         const link = document.createElement('link');
         link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap';
@@ -211,23 +198,17 @@ export default function App() {
         };
     }, []);
 
-    // フィルターされたすべての写真
     const displayedPhotos = currentFilter === 'all' ? photos : photos.filter(p => p.category === currentFilter);
-    
-    // 「もっと見る」状態を考慮した、実際に画面のグリッドに表示する写真
     const visiblePhotos = isExpanded ? displayedPhotos : displayedPhotos.slice(0, INITIAL_VISIBLE_COUNT);
 
-    // フィルター切り替え時に「もっと見る」を閉じた状態にリセット
     useEffect(() => {
         setIsExpanded(false);
     }, [currentFilter]);
 
-    // --- ライトボックスのキーボード操作 ---
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (lightboxIndex === null) return;
             if (e.key === 'Escape') setLightboxIndex(null);
-            // 表示されている範囲内（visiblePhotos）でループさせる
             if (e.key === 'ArrowRight') setLightboxIndex((prev) => (prev + 1) % visiblePhotos.length);
             if (e.key === 'ArrowLeft') setLightboxIndex((prev) => (prev - 1 + visiblePhotos.length) % visiblePhotos.length);
         };
@@ -276,7 +257,6 @@ export default function App() {
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
                         )}
                     </button>
-                    {/* ナビゲーションにPROJECTを追加 */}
                     <nav className="hidden md:flex space-x-8 items-center tracking-wider">
                         {['GALLERY', 'CONCEPT', 'PROJECT', 'ABOUT', 'CONTACT'].map((item) => (
                             <a key={item} href={`#${item.toLowerCase()}`} className="text-xs font-medium hover:text-gray-400 transition">{item}</a>
@@ -342,7 +322,6 @@ export default function App() {
                     </div>
                 </FadeInSection>
 
-                {/* ギャラリー写真グリッド */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                     {visiblePhotos.map((photo, index) => (
                         <FadeInSection key={`${currentFilter}-${photo.id}`} delay={(index % INITIAL_VISIBLE_COUNT) * 100}>
@@ -377,7 +356,6 @@ export default function App() {
                     ))}
                 </div>
 
-                {/* もっと見る（VIEW MORE）テキストリンク / ボタン */}
                 {displayedPhotos.length > INITIAL_VISIBLE_COUNT && (
                     <FadeInSection delay={100} className="mt-16 flex justify-center">
                         <button
@@ -439,31 +417,61 @@ export default function App() {
                 </div>
             </section>
 
-            {/* Project Section (New) */}
-            <section id="project" className="relative border-b border-gray-900 overflow-hidden bg-black min-h-[85vh] flex items-center justify-center">
+            {/* ============================================================================
+                Project Section (Updated: Bold Dark Margins)
+            ============================================================================ */}
+            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex items-center justify-center group">
                 
-                {/* スライドショーの背景コンポーネント */}
-                <ProjectSlideshow />
-                
-                {/* テキストを読みやすくするためのグラデーションオーバーレイ */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black z-10 pointer-events-none"></div>
-                <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
-                
-                {/* テキストコンテンツ */}
-                <div className="relative z-20 container mx-auto px-6 text-center max-w-4xl py-32">
-                    <FadeInSection>
-                        <p className="text-yellow-600 tracking-[0.4em] text-xs font-bold mb-4 uppercase">Special Exhibition</p>
-                        <h2 className="text-4xl md:text-6xl font-bold mb-2 brand-font tracking-widest text-white leading-tight">
-                            portrait exhibition
-                        </h2>
-                        <p className="text-xl md:text-2xl text-gray-300 brand-font italic font-light mb-12">by 430</p>
-                        <div className="w-12 h-[1px] bg-gray-600 mx-auto mb-10"></div>
-                        <p className="text-gray-200 font-light leading-[2.4] tracking-widest text-[13px] md:text-base drop-shadow-lg">
-                            暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。<br className="hidden md:block" />
-                            光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取ったポートレート群。<br className="hidden md:block" />
-                            視線の先に宿る物語を、どうか感じ取ってください。
-                        </p>
-                    </FadeInSection>
+                <FadeInSection className="w-full max-w-5xl px-4 md:px-0">
+                    {/* スライドショーを囲むコンテナ（大胆な余白を作るために枠を制限） */}
+                    <div className="relative w-full aspect-[4/3] md:aspect-[16/9] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
+                        
+                        {/* スライドショー背景（枠内で再生される） */}
+                        <ProjectSlideshow />
+                        
+                        {/* 文字を見やすくするためのグラデーション（HIDE INFOで消える） */}
+                        <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 pointer-events-none transition-opacity duration-1000 ${showProjectInfo ? 'opacity-100' : 'opacity-0'}`}></div>
+                        
+                        {/* 左下のテキストコンテンツ（枠内に配置、HIDE INFOで消え下に沈む） */}
+                        <div className={`absolute bottom-0 left-0 w-full z-20 px-6 md:px-12 pb-8 md:pb-12 pt-32 transition-all duration-1000 transform ${showProjectInfo ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}>
+                            <div className="max-w-2xl text-left border-l border-yellow-600/40 pl-6 md:pl-8">
+                                <p className="text-yellow-600 tracking-[0.3em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Exhibition</p>
+                                <h2 className="text-2xl md:text-4xl font-bold mb-1 brand-font tracking-widest text-white leading-tight drop-shadow-lg">
+                                    portrait exhibition
+                                </h2>
+                                <p className="text-sm md:text-lg text-gray-300 brand-font italic font-light mb-4 md:mb-6 drop-shadow-md">by 430</p>
+                                <p className="text-gray-300 font-light leading-[2.2] tracking-widest text-[11px] md:text-xs drop-shadow-md">
+                                    暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。<br className="hidden md:block" />
+                                    光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取ったポートレート群。<br className="hidden md:block" />
+                                    視線の先に宿る物語を、どうか感じ取ってください。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </FadeInSection>
+
+                {/* 右下のトグルボタン（SHOW / HIDE） - 外側の黒い余白部分に配置 */}
+                <div className="absolute bottom-10 right-6 md:right-12 z-30">
+                    <button 
+                        onClick={() => setShowProjectInfo(!showProjectInfo)}
+                        className={`flex items-center gap-2 text-xs tracking-widest font-medium transition duration-500 px-5 py-2.5 rounded-sm border backdrop-blur-md ${
+                            showProjectInfo 
+                                ? "text-gray-400 bg-black/40 border-gray-800 hover:text-white hover:bg-black/80 hover:border-gray-500" 
+                                : "text-white bg-black/60 border-gray-500 hover:bg-black/90 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                        }`}
+                    >
+                        {showProjectInfo ? (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                <span>HIDE INFO</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                <span>SHOW INFO</span>
+                            </>
+                        )}
+                    </button>
                 </div>
             </section>
 
