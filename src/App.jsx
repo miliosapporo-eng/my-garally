@@ -394,17 +394,13 @@ export default function App() {
     const [isExpanded, setIsExpanded] = useState(false);
     const INITIAL_VISIBLE_COUNT = 6; 
 
-    // ★ 隠し管理画面のステート
+    // 隠し管理画面のステート
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [clickCount, setClickCount] = useState(0);
 
-    // ★ 動的Exhibitionステート
-    const [dynamicExhibitions, setDynamicExhibitions] = useState([]); // Storageからフェッチしたフォルダ群
-    const [currentExhIndex, setCurrentExhIndex] = useState(0);       // 現在表示中の企画インデックス
-
-    // 左右スワイプ / ドラッグ用の座標管理
-    const [dragStart, setDragStart] = useState(0);
-    const [dragEnd, setDragEnd] = useState(0);
+    // ★ 動的Exhibitionステート (タイル一覧用)
+    const [dynamicExhibitions, setDynamicExhibitions] = useState([]); // Storageからフェッチしたフォルダ群とサムネイル
+    const [selectedExhibitionId, setSelectedExhibitionId] = useState(null); // nullの時は一覧表示、IDの時はスライドショー表示
 
     const [diagnosticError, setDiagnosticError] = useState(null);
 
@@ -433,29 +429,53 @@ export default function App() {
         };
     }, []);
 
-    // 1. Storage直下のフォルダ構成を自動解析して企画一覧を生成
+    // 1. Storage直下のフォルダ構成を自動解析して「企画一覧」と「サムネイル」を生成
     useEffect(() => {
         const fetchExhibitions = async () => {
             try {
                 const listRef = ref(storage, 'projects');
                 const res = await listAll(listRef);
-                const folders = res.prefixes.map(p => ({
-                    id: p.name,
-                    title: p.name.replace(/_/g, ' ') // アンダーバーをスペースに美しく自動置換
+                
+                const foldersData = await Promise.all(res.prefixes.map(async (p) => {
+                    const folderRef = ref(storage, p.fullPath);
+                    const folderItems = await listAll(folderRef);
+                    
+                    // サムネイル画像のデフォルト（フォルダが空の場合）
+                    let thumbnailUrl = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80"; 
+                    
+                    // フォルダ内の最初の画像をサムネイルとして採用
+                    if (folderItems.items.length > 0) {
+                        try {
+                            thumbnailUrl = await getDownloadURL(folderItems.items[0]);
+                        } catch (e) {
+                            console.error("Thumbnail fetch error", e);
+                        }
+                    }
+
+                    return {
+                        id: p.name,
+                        title: p.name.replace(/_/g, ' '), // アンダーバーをスペースに美しく自動置換
+                        thumbnailUrl: thumbnailUrl
+                    };
                 }));
 
-                if (folders.length > 0) {
-                    setDynamicExhibitions(folders);
+                if (foldersData.length > 0) {
+                    setDynamicExhibitions(foldersData);
                 } else {
                     // フォルダーが空の場合のプレビュー用デフォルト
                     setDynamicExhibitions([
-                        { id: 'portrait_exhibition', title: 'Proof of my existence' }
+                        { id: 'portrait_exhibition', title: 'Proof of my existence', thumbnailUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80" },
+                        { id: 'silent_shadows', title: 'Silent Shadows', thumbnailUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80" },
+                        { id: 'footsteps', title: 'Footsteps of Messenger', thumbnailUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80" }
                     ]);
                 }
             } catch (error) {
                 console.error("Dynamic folders fetch error:", error);
+                // エラー時のプレビュー用デフォルト
                 setDynamicExhibitions([
-                    { id: 'portrait_exhibition', title: 'Proof of my existence' }
+                    { id: 'portrait_exhibition', title: 'Proof of my existence', thumbnailUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80" },
+                    { id: 'silent_shadows', title: 'Silent Shadows', thumbnailUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80" },
+                    { id: 'footsteps', title: 'Footsteps of Messenger', thumbnailUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80" }
                 ]);
             }
         };
@@ -525,42 +545,6 @@ export default function App() {
             setClickCount(0);
         }
     };
-
-    // 企画切り替え用の制御関数
-    const handleNextExhibition = () => {
-        if (dynamicExhibitions.length === 0) return;
-        setCurrentExhIndex(prev => (prev + 1) % dynamicExhibitions.length);
-    };
-
-    const handlePrevExhibition = () => {
-        if (dynamicExhibitions.length === 0) return;
-        setCurrentExhIndex(prev => (prev - 1 + dynamicExhibitions.length) % dynamicExhibitions.length);
-    };
-
-    // タッチ＆ドラッグイベント（左右スワイプ）の検知ロジック
-    const handleSwipeStart = (clientX) => {
-        setDragStart(clientX);
-        setDragEnd(clientX);
-    };
-
-    const handleSwipeMove = (clientX) => {
-        setDragEnd(clientX);
-    };
-
-    const handleSwipeEnd = () => {
-        const distance = dragStart - dragEnd;
-        if (distance > 80) {
-            // 左スワイプ -> 次の企画へ
-            handleNextExhibition();
-        } else if (distance < -80) {
-            // 右スワイプ -> 前の企画へ
-            handlePrevExhibition();
-        }
-        setDragStart(0);
-        setDragEnd(0);
-    };
-
-    const activeExhibition = dynamicExhibitions[currentExhIndex] || { id: '', title: '' };
 
     return (
         <div className="min-h-screen flex flex-col antialiased selection:bg-gray-700 selection:text-white bg-black">
@@ -756,71 +740,63 @@ export default function App() {
             </section>
 
             {/* ============================================================================
-                Project Section (Dynamic Caption Slideshow & Static Header & Swipable)
+                Project Section (Tile & Click-to-Slideshow)
             ============================================================================ */}
-            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex flex-col items-center justify-center select-none">
+            <section id="project" className="relative py-32 md:py-48 border-b border-gray-900 overflow-hidden bg-black flex flex-col items-center justify-center select-none min-h-[100vh]">
                 
-                {/* 常に上に固定して表示する特別なタイトル情報（Storage内のフォルダ名と完全同期） */}
-                <div className="w-full max-w-5xl px-6 md:px-0 text-center mb-12">
-                    <p className="text-yellow-600 tracking-[0.4em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Portrait Exhibition</p>
-                    <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight capitalize min-h-[1.5em] transition-all duration-500">
-                        {activeExhibition.title || "Loading Exhibition..."}
+                {/* セクション上部の固定タイトル情報 */}
+                <FadeInSection className="w-full max-w-5xl px-6 md:px-0 text-center mb-16">
+                    <p className="text-yellow-600 tracking-[0.4em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Exhibitions</p>
+                    <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight transition-all duration-500">
+                        Exhibitions
                     </h2>
                     <p className="text-sm md:text-base text-gray-400 brand-font italic font-light">by 430</p>
-                </div>
+                </FadeInSection>
 
-                {/* スライドショーコンテナ（左右に矢印ボタン、スワイプ操作領域） */}
-                <div className="relative w-full max-w-5xl px-4 md:px-12 flex items-center justify-center">
+                <div className="relative w-full max-w-6xl px-6 md:px-12 flex items-center justify-center">
                     
-                    {/* 左切り替えボタン */}
-                    {dynamicExhibitions.length > 1 && (
-                        <button 
-                            onClick={handlePrevExhibition} 
-                            className="absolute left-1 md:left-4 z-30 p-2 text-gray-600 hover:text-white transition-colors duration-300 focus:outline-none"
-                            aria-label="Previous exhibition"
-                        >
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                        </button>
-                    )}
-
-                    {/* スワイプ・ドラッグ検知機能つきメインステージ */}
-                    <div 
-                        className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950 cursor-grab active:cursor-grabbing"
-                        onTouchStart={(e) => handleSwipeStart(e.touches[0].clientX)}
-                        onTouchMove={(e) => handleSwipeMove(e.touches[0].clientX)}
-                        onTouchEnd={handleSwipeEnd}
-                        onMouseDown={(e) => handleSwipeStart(e.clientX)}
-                        onMouseMove={(e) => dragStart !== 0 && handleSwipeMove(e.clientX)}
-                        onMouseUp={handleSwipeEnd}
-                        onMouseLeave={() => dragStart !== 0 && setDragStart(0)}
-                    >
-                        {/* 選択されているフォルダIDをプロップスとして渡す */}
-                        {activeExhibition.id && (
-                            <ProjectSlideshow exhibitionId={activeExhibition.id} />
-                        )}
-                        
-                        {/* スワイプ可能であることを示す控えめなインジケータードット */}
-                        {dynamicExhibitions.length > 1 && (
-                            <div className="absolute top-6 right-6 z-20 flex gap-2">
-                                {dynamicExhibitions.map((_, idx) => (
-                                    <span 
-                                        key={idx} 
-                                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${idx === currentExhIndex ? 'bg-yellow-600 w-4' : 'bg-gray-600'}`}
-                                    />
-                                ))}
+                    {/* selectedExhibitionId が null の場合は「タイル一覧」を表示 */}
+                    {!selectedExhibitionId ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
+                            {dynamicExhibitions.map((exh, idx) => (
+                                <FadeInSection key={exh.id} delay={idx * 100}>
+                                    <div 
+                                        className="group relative aspect-video md:aspect-square overflow-hidden rounded-sm cursor-pointer border border-gray-800 hover:border-gray-500 transition-colors duration-500"
+                                        onClick={() => setSelectedExhibitionId(exh.id)}
+                                    >
+                                        <img src={exh.thumbnailUrl} alt={exh.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-100" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-80 group-hover:opacity-60 transition-opacity duration-500"></div>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                                            <h3 className="text-xl md:text-2xl font-bold text-white tracking-widest capitalize drop-shadow-lg brand-font">{exh.title}</h3>
+                                            <p className="mt-4 text-[10px] text-yellow-500 tracking-[0.3em] font-medium opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 uppercase">View Exhibition</p>
+                                        </div>
+                                    </div>
+                                </FadeInSection>
+                            ))}
+                        </div>
+                    ) : (
+                        /* いずれかのタイルがクリックされたら「スライドショー画面」を表示 */
+                        <div className="w-full animate-in fade-in zoom-in-95 duration-700">
+                            
+                            {/* スライドショー上部の「タイトル」と「戻るボタン」 */}
+                            <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center w-full gap-4 md:gap-0">
+                                <h3 className="text-xl md:text-3xl font-bold text-white capitalize tracking-widest brand-font">
+                                    {dynamicExhibitions.find(e => e.id === selectedExhibitionId)?.title}
+                                </h3>
+                                <button 
+                                    onClick={() => setSelectedExhibitionId(null)}
+                                    className="text-xs text-gray-400 hover:text-white tracking-widest border border-gray-700 hover:border-white px-4 py-2 rounded-sm transition-all duration-300 flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                                    BACK TO LIST
+                                </button>
                             </div>
-                        )}
-                    </div>
 
-                    {/* 右切り替えボタン */}
-                    {dynamicExhibitions.length > 1 && (
-                        <button 
-                            onClick={handleNextExhibition} 
-                            className="absolute right-1 md:right-4 z-30 p-2 text-gray-600 hover:text-white transition-colors duration-300 focus:outline-none"
-                            aria-label="Next exhibition"
-                        >
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        </button>
+                            {/* スライドショー本体 */}
+                            <div className="relative w-full h-[65vh] md:h-[80vh] shadow-[0_0_40px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden bg-gray-950">
+                                <ProjectSlideshow exhibitionId={selectedExhibitionId} />
+                            </div>
+                        </div>
                     )}
                 </div>
             </section>
@@ -884,7 +860,7 @@ export default function App() {
                             <div className="flex flex-col items-center gap-6">
                                 <a href="mailto:DSL@design4qol.com" className="group inline-flex items-center gap-4 px-10 py-4 border border-gray-600 text-white rounded-sm hover:bg-white hover:text-black transition-all duration-500 text-sm tracking-[0.2em] brand-font overflow-hidden relative">
                                     <span className="absolute inset-0 w-full h-full -mt-1 rounded-sm opacity-30 bg-gradient-to-b from-transparent via-transparent to-black group-hover:opacity-0 transition-opacity"></span>
-                                    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                     <span className="relative z-10">CONTACT ME</span>
                                 </a>
                                 <a href="https://instagram.com/dark_side_luck" target="_blank" rel="noreferrer" className="group p-2 text-gray-500 hover:text-white transition duration-300 flex items-center justify-center gap-3 text-xs tracking-widest mt-4">
