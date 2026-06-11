@@ -101,6 +101,10 @@ const AdminPanel = ({ onClose }) => {
                     caption: metadata.customMetadata?.caption || ""
                 };
             }));
+            
+            // ファイル名順にソート
+            items.sort((a, b) => a.name.localeCompare(b.name));
+            
             setAdminImages(items);
         } catch (error) {
             console.error("Admin fetch error:", error);
@@ -243,19 +247,20 @@ const ProjectSlideshow = ({ exhibitionId }) => {
                     
                     const description = metadata.customMetadata?.caption || "光と影が交錯する瞬間に現れる、隠された真実。視線の先に宿る静かな物語を感じ取ってほしい。";
                     
-                    return { url, title, description };
+                    return { url, title, description, fileName: itemRef.name };
                 }));
 
                 // 万が一画像が全くない場合のフォールバック
                 if (fetchedImages.length === 0) {
                     fetchedImages = [
-                        { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80", title: "Silent Echo", description: "暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。" },
-                        { url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80", title: "Fading Light", description: "光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取った一枚。" }
+                        { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80", title: "Silent Echo", description: "暗闇の奥底から浮かび上がる、剥き出しの感情と静寂。", fileName: "1.webp" },
+                        { url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80", title: "Fading Light", description: "光と影が交錯する瞬間にのみ現れる「その人」の真実を切り取った一枚。", fileName: "2.webp" }
                     ];
                 }
 
-                // 順番をランダムシャッフル
-                fetchedImages = fetchedImages.sort(() => Math.random() - 0.5);
+                // ファイル名でリスト順（アルファベット・数字順）にソート
+                fetchedImages.sort((a, b) => a.fileName.localeCompare(b.fileName));
+
                 setImages(fetchedImages);
                 setCurrentIndex(0); // スライド位置をリセット
             } catch (error) {
@@ -292,14 +297,18 @@ const ProjectSlideshow = ({ exhibitionId }) => {
                 const isActive = index === currentIndex;
                 const isPrevious = index === (currentIndex - 1 + images.length) % images.length;
 
+                // 基本のレイアウト設定 (モバイルは高さ55%で上寄せ、PCは幅55%で左寄せ。p-6 md:p-12の余白のおかげで絶対に見切れません)
                 let imgWrapperClass = "absolute top-0 left-0 w-full h-[55%] md:h-full md:w-[55%] flex items-center justify-center p-6 md:p-12 transition-all pointer-events-none ";
                 let textWrapperClass = "absolute z-20 flex flex-col transition-all ";
 
                 if (isActive) {
                     if (phase === 'fadeIn') {
+                        // モバイル：中央にぴったり持ってくるため translate-y-[41%] スライド
+                        // PC：中央にぴったり持ってくるため md:translate-x-[41%] スライド
                         imgWrapperClass += "opacity-100 duration-[3000ms] ease-out translate-y-[41%] md:translate-y-0 md:translate-x-[41%] scale-95";
                         textWrapperClass += "opacity-0 duration-[0ms] translate-y-4 md:translate-y-0 md:translate-x-4";
                     } else if (phase === 'moveLeft') {
+                        // 左（スマホは上）へ移動。パディングが入っているので端に写真が絶対にくっつかない安全な位置へスライド
                         imgWrapperClass += "opacity-100 duration-[2000ms] ease-in-out translate-y-0 md:translate-x-0 scale-90"; 
                         textWrapperClass += "opacity-100 duration-[2000ms] ease-out translate-y-0 md:translate-x-0";
                     } else if (phase === 'reading') {
