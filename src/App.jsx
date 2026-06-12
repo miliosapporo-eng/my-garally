@@ -757,7 +757,7 @@ export default function App() {
                 <FadeInSection className="w-full max-w-5xl px-6 md:px-0 text-center mb-16">
                     <p className="text-yellow-600 tracking-[0.4em] text-[10px] md:text-xs font-bold mb-3 uppercase">Special Exhibitions</p>
                     <h2 className="text-3xl md:text-5xl font-bold mb-2 brand-font tracking-widest text-white leading-tight transition-all duration-500">
-                        Exhibitions
+                        Ensemble pieces
                     </h2>
                     <p className="text-sm md:text-base text-gray-400 brand-font italic font-light">by 430</p>
                 </FadeInSection>
