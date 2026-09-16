@@ -359,7 +359,7 @@ const DEFAULT_PHOTOS = [
     { id: "9", url: "images/entry/niigata.webp", fullUrl: "images/entry/niigata.webp", title: "NIIGATA", category: "journey", createdAt: 1716223208000 },
     { id: "10", url: "images/entry/california.webp", fullUrl: "images/entry/california.webp", title: "CALIFORNIA", category: "journey", createdAt: 1716223209000 },
     { id: "11", url: "images/entry/yamagiwa.webp", fullUrl: "images/entry/yamagiwa.webp", title: "million dollar baby", category: "snap", createdAt: 1716223210000 },
-    { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 }
+    { id: "12", url: "images/entry/m.webp", fullUrl: "images/entry/m.webp", title: "distance", category: "snap", createdAt: 1716223211000 },
     { id: "13", url: "images/entry/arizona.webp", fullUrl: "images/entry/arizona.webp", title: "ARIZONA", category: "journey", createdAt: Date.now() }
 ];
 
